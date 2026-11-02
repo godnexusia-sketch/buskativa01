@@ -64,3 +64,29 @@ describe("matchesAttributes", () => {
     expect(matchesAttributes("Air Fryer Mondial 127V", { voltagem: "220v" })).toBe(false);
   });
 });
+
+describe("matchesAttributes (correções)", () => {
+  it("capacidade respeita limites numéricos", () => {
+    const { atributos } = normalizeQuery("notebook 8gb ram");
+    expect(matchesAttributes("Notebook 128GB", atributos)).toBe(false);
+    expect(matchesAttributes("Notebook 8 GB RAM", atributos)).toBe(true);
+    expect(matchesAttributes("Panela 15L", { capacidade: "5l" })).toBe(false);
+    expect(matchesAttributes("Panela 5 L", { capacidade: "5l" })).toBe(true);
+  });
+
+  it("modelo sem sufixo rejeita variantes; com sufixo aceita", () => {
+    const base = normalizeQuery("iPhone 15 128GB preto").atributos;
+    expect(matchesAttributes("iPhone 15 Pro Max 128GB Preto", base)).toBe(false);
+    expect(matchesAttributes("iPhone 15 128GB Preto", base)).toBe(true);
+    const ultra = normalizeQuery("Samsung Galaxy S24 Ultra 256 GB").atributos;
+    expect(matchesAttributes("Samsung Galaxy S24 Ultra 256GB", ultra)).toBe(true);
+    expect(matchesAttributes("Samsung Galaxy S24 256GB", ultra)).toBe(false);
+  });
+});
+
+describe("normalizeQuery (protótipo)", () => {
+  it("chaves de Object.prototype não viram marca", () => {
+    expect(normalizeQuery("constructor").atributos.marca).toBeUndefined();
+    expect(normalizeQuery("toString").atributos.marca).toBeUndefined();
+  });
+});

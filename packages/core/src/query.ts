@@ -65,7 +65,7 @@ export function normalizeQuery(text: string): NormalizedQuery {
   const cor = toks.find((t) => CORES.includes(t));
   if (cor) atributos.cor = cor;
   const marcaDireta = toks.find((t) => MARCAS.includes(t));
-  const linha = toks.find((t) => t in MARCA_POR_LINHA);
+  const linha = toks.find((t) => Object.hasOwn(MARCA_POR_LINHA, t));
   const marca = marcaDireta ?? (linha ? MARCA_POR_LINHA[linha] : undefined);
   if (marca) atributos.marca = marca;
   const modelo = extrairModelo(toks, atributos);
@@ -83,18 +83,29 @@ const radical = (t: string) => t.slice(0, -1);
 export function matchesAttributes(title: string, atributos: QueryAttributes): boolean {
   const t = normalizeText(title);
   const toks = tokens(t);
-  const compacto = t.replace(/\s+/g, "");
 
-  if (atributos.capacidade && !compacto.includes(atributos.capacidade)) return false;
+  if (atributos.capacidade) {
+    const m = atributos.capacidade.match(/^([\d.]+)([a-z]+)$/);
+    if (!m) return false;
+    const numero = m[1].replace(/\./g, "[.,]");
+    if (!new RegExp(`(?<![\\d.,])${numero}\\s?${m[2]}\\b`).test(t)) return false;
+  }
   if (atributos.voltagem && !toks.includes("bivolt")) {
     const numero = atributos.voltagem.replace("v", "");
     if (atributos.voltagem === "bivolt" || !new RegExp(`\\b${numero}\\s?v\\b`).test(t)) return false;
   }
   if (atributos.cor && !toks.some((tok) => radical(tok) === radical(atributos.cor!))) return false;
   if (atributos.marca) {
-    const temMarca = toks.includes(atributos.marca) || toks.some((tok) => MARCA_POR_LINHA[tok] === atributos.marca);
+    const temMarca = toks.includes(atributos.marca) || toks.some((tok) => Object.hasOwn(MARCA_POR_LINHA, tok) && MARCA_POR_LINHA[tok] === atributos.marca);
     if (!temMarca) return false;
   }
-  if (atributos.modelo && !atributos.modelo.split(" ").every((p) => toks.includes(p))) return false;
+  if (atributos.modelo) {
+    const partes = atributos.modelo.split(" ");
+    if (!partes.every((p) => toks.includes(p))) return false;
+    if (!partes.some((p) => SUFIXOS_MODELO.has(p))) {
+      const ultima = partes[partes.length - 1];
+      if (toks.some((tok, i) => tok === ultima && SUFIXOS_MODELO.has(toks[i + 1] ?? ""))) return false;
+    }
+  }
   return true;
 }
