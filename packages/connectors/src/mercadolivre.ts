@@ -1,0 +1,55 @@
+import { type Connector, ConnectorError, type Offer } from "@buskativa/core";
+
+interface MlResult {
+  id: string;
+  title: string;
+  permalink: string;
+  price: number;
+  thumbnail?: string;
+  shipping?: { free_shipping?: boolean };
+  seller?: { nickname?: string };
+  attributes?: { id: string; value_name: string | null }[];
+}
+
+export function mercadoLivreConnector(opts: { fetch?: typeof fetch; accessToken?: string } = {}): Connector {
+  const doFetch = opts.fetch ?? fetch;
+  return {
+    id: "mercadolivre",
+    async search(q, { limit }) {
+      const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q.termo)}&limit=${Math.min(limit, 50)}`;
+      const headers: Record<string, string> = opts.accessToken ? { Authorization: `Bearer ${opts.accessToken}` } : {};
+      let res: Response;
+      try {
+        res = await doFetch(url, { headers });
+      } catch (e) {
+        throw new ConnectorError("NETWORK", String(e));
+      }
+      if ([401, 403, 429].includes(res.status)) throw new ConnectorError("BLOCKED", `HTTP ${res.status}`);
+      if (!res.ok) throw new ConnectorError("NETWORK", `HTTP ${res.status}`);
+      let body: { results?: MlResult[] };
+      try {
+        body = (await res.json()) as { results?: MlResult[] };
+      } catch (e) {
+        throw new ConnectorError("PARSE", String(e));
+      }
+      return (body.results ?? []).map(
+        (r): Offer => ({
+          store: "mercadolivre",
+          externalId: r.id,
+          title: r.title,
+          url: r.permalink,
+          price: r.price,
+          shipping: r.shipping?.free_shipping ? 0 : null,
+          currency: "BRL",
+          imageUrl: r.thumbnail?.replace(/^http:/, "https:"),
+          sellerName: r.seller?.nickname,
+          attributes: Object.fromEntries(
+            (r.attributes ?? [])
+              .filter((a) => a.value_name)
+              .map((a) => [a.id.toLowerCase(), a.value_name as string]),
+          ),
+        }),
+      );
+    },
+  };
+}

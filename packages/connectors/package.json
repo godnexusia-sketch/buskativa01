@@ -1,0 +1,17 @@
+{
+  "name": "@buskativa/connectors",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@buskativa/core": "*",
+    "amazon-paapi": "^1.1.0"
+  }
+}

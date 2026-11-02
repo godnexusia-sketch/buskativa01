@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "id": "MLB111",
+      "title": "Fone De Ouvido Bluetooth Jbl Tune 520bt Preto",
+      "permalink": "https://produto.mercadolivre.com.br/MLB-111-fone-jbl",
+      "price": 249.9,
+      "thumbnail": "http://http2.mlstatic.com/D_111-I.jpg",
+      "shipping": { "free_shipping": true },
+      "seller": { "nickname": "LOJAOFICIALJBL" },
+      "attributes": [
+        { "id": "BRAND", "value_name": "JBL" },
+        { "id": "COLOR", "value_name": "Preto" },
+        { "id": "LINE", "value_name": null }
+      ]
+    },
+    {
+      "id": "MLB222",
+      "title": "Fone Bluetooth Sem Fio I12",
+      "permalink": "https://produto.mercadolivre.com.br/MLB-222-fone-i12",
+      "price": 39.5,
+      "thumbnail": "http://http2.mlstatic.com/D_222-I.jpg",
+      "shipping": { "free_shipping": false },
+      "seller": { "nickname": "IMPORTS" },
+      "attributes": []
+    }
+  ]
+}
