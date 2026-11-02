@@ -5,3 +5,4 @@ export * from "./stores";
 export * from "./affiliate";
 export * from "./query";
 export * from "./offers";
+export * from "./stats";
