@@ -4,3 +4,4 @@ export * from "./money";
 export * from "./stores";
 export * from "./affiliate";
 export * from "./query";
+export * from "./offers";
