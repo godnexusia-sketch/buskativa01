@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
-  backfillCategories, categoryCounts, createRun, importOffers, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
+  backfillCategories, categoryCounts, createRun, importOffers, syncCatalogOffers, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
   latestRunIdForProduct, listProducts, purgeExpiredData, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
@@ -381,6 +381,18 @@ describe("listProducts", { timeout: 90000 }, () => {
       { watched: false, last_run_at: expect.anything() },
     ]);
     expect(await categoryCounts(db)).toEqual({ cozinha: 1 });
+  });
+
+  it("syncCatalogOffers grava em lote e só registra preço novo quando muda ou fica velho", async () => {
+    const t0 = new Date("2026-11-01T10:00:00Z");
+    const o = (id: string, price: number) => offer({ store: "lomadee", externalId: id, title: `Air Fryer ${id}`, price, url: "https://loja.com.br/p", attributes: { site: "loja.com.br" } });
+    expect(await syncCatalogOffers(db, [o("a", 100), o("b", 200), o("a", 100)], t0)).toEqual({ products: 2, observations: 2 });
+    expect(await syncCatalogOffers(db, [o("a", 100), o("b", 180)], new Date(t0.getTime() + 3600e3))).toEqual({ products: 2, observations: 1 });
+    expect(await syncCatalogOffers(db, [o("a", 100)], new Date(t0.getTime() + 25 * 3600e3))).toEqual({ products: 1, observations: 1 });
+    expect(await syncCatalogOffers(db, [])).toEqual({ products: 0, observations: 0 });
+    const r = await listProducts(db, base);
+    expect(r.items.map((i) => [i.title, i.priceCents])).toEqual([["Air Fryer a", 10000], ["Air Fryer b", 18000]]);
+    expect(await categoryCounts(db)).toEqual({ cozinha: 2 });
   });
 
   it("backfillCategories preenche só quem está sem categoria", async () => {

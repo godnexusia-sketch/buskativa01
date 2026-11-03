@@ -16,6 +16,20 @@ interface LomadeeProduct {
   images?: { url?: string }[];
   options?: LomadeeOption[];
 }
+interface LomadeeCampaign {
+  code?: string;
+  name?: string;
+  organizationId: string;
+  period?: { endAt?: string | null };
+  channels?: { shortUrls?: string[] }[];
+}
+export interface LomadeeCoupon {
+  code: string;
+  name: string;
+  brand: string | null;
+  endAt: string | null;
+  shortUrl: string | null;
+}
 interface LomadeeBrand {
   id: string;
   name?: string;
@@ -33,9 +47,9 @@ const hostOf = (site: string | undefined) => {
 
 /**
  * Lomadee affiliate network (130+ Brazilian stores) through its official REST API. Prices come in reais.
- * Brand names are cached for 6 h so a search costs one request (the API allows 60 per minute).
+ * Brand names are cached for 6 h so a request costs one call (the API allows 60 per minute).
  */
-export function lomadeeConnector(opts: { apiKey: string; fetch?: typeof fetch; timeoutMs?: number; now?: () => number }): Connector {
+export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; timeoutMs?: number; now?: () => number }) {
   const doFetch = opts.fetch ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 20000;
   const now = opts.now ?? Date.now;
@@ -70,40 +84,69 @@ export function lomadeeConnector(opts: { apiKey: string; fetch?: typeof fetch; t
     return byId;
   };
 
+  const products = async (query: string): Promise<Offer[]> => {
+    const [body, byId] = await Promise.all([
+      get<{ data?: LomadeeProduct[] }>(`/affiliate/products?${query}&isAvailable=true`),
+      // a failed brand lookup only costs the store name, not the products
+      brandMap().catch(() => new Map<string, LomadeeBrand>()),
+    ]);
+    const offers: Offer[] = [];
+    for (const p of body.data ?? []) {
+      if (p.available === false || !p.name || !p.url?.startsWith("https://")) continue;
+      const option = p.options?.find((o) => o.available !== false && (o.pricing?.[0]?.price ?? 0) > 0);
+      const price = option?.pricing?.[0]?.price;
+      if (!option || !price || price <= 0) continue;
+      const brand = byId.get(p.organizationId);
+      const site = hostOf(brand?.site);
+      const image = p.images?.[0]?.url ?? option.images?.[0]?.url;
+      offers.push({
+        store: "lomadee",
+        externalId: `${p.organizationId}:${p.id}`,
+        title: p.name.trim(),
+        url: p.url,
+        price,
+        ...withOriginalPrice(price, option.pricing?.[0]?.listPrice),
+        shipping: null,
+        currency: "BRL",
+        sellerName: brand?.name?.trim(),
+        imageUrl: image?.startsWith("https://") ? image : undefined,
+        attributes: { organizationId: p.organizationId, ...(site ? { site } : {}) },
+      });
+    }
+    return offers;
+  };
+
   return {
-    id: "lomadee",
-    async search(q, { limit }) {
-      const [body, byId] = await Promise.all([
-        get<{ data?: LomadeeProduct[] }>(
-          `/affiliate/products?search=${encodeURIComponent(q.termo)}&limit=${Math.min(Math.max(limit, 50), 100)}&isAvailable=true`,
-        ),
-        // a failed brand lookup only costs the store name, not the search
-        brandMap().catch(() => new Map<string, LomadeeBrand>()),
-      ]);
-      const offers: Offer[] = [];
-      for (const p of body.data ?? []) {
-        if (p.available === false || !p.name || !p.url?.startsWith("https://")) continue;
-        const option = p.options?.find((o) => o.available !== false && (o.pricing?.[0]?.price ?? 0) > 0);
-        const price = option?.pricing?.[0]?.price;
-        if (!option || !price || price <= 0) continue;
-        const brand = byId.get(p.organizationId);
-        const site = hostOf(brand?.site);
-        const image = p.images?.[0]?.url ?? option.images?.[0]?.url;
-        offers.push({
-          store: "lomadee",
-          externalId: `${p.organizationId}:${p.id}`,
-          title: p.name.trim(),
-          url: p.url,
-          price,
-          ...withOriginalPrice(price, option.pricing?.[0]?.listPrice),
-          shipping: null,
-          currency: "BRL",
-          sellerName: brand?.name?.trim(),
-          imageUrl: image?.startsWith("https://") ? image : undefined,
-          attributes: { organizationId: p.organizationId, ...(site ? { site } : {}) },
-        });
+    search: (termo: string, limit: number) =>
+      products(`search=${encodeURIComponent(termo)}&limit=${Math.min(Math.max(limit, 50), 100)}`),
+    /** One page (100 products) of the whole catalog, for the periodic sync; [] past the last page. */
+    page: (n: number) => products(`page=${n}&limit=100`),
+    /** Coupons valid now, with the brand name and the affiliate short link the network already made. */
+    async coupons(maxPages = 30): Promise<LomadeeCoupon[]> {
+      const byId = await brandMap().catch(() => new Map<string, LomadeeBrand>());
+      const out: LomadeeCoupon[] = [];
+      for (let page = 1; page <= maxPages; page++) {
+        const body = await get<{ data?: LomadeeCampaign[]; meta?: { totalPages?: number } }>(
+          `/affiliate/campaigns?types=GenericCoupon&status=onTime&page=${page}&limit=20`,
+        );
+        for (const c of body.data ?? []) {
+          if (!c.code || !c.name) continue;
+          out.push({
+            code: c.code.trim(),
+            name: c.name.replace(/s+/g, " ").trim(),
+            brand: byId.get(c.organizationId)?.name?.trim() ?? null,
+            endAt: c.period?.endAt ?? null,
+            shortUrl: c.channels?.flatMap((ch) => ch.shortUrls ?? []).find((u) => u.startsWith("https://")) ?? null,
+          });
+        }
+        if (page >= (body.meta?.totalPages ?? 1)) break;
       }
-      return offers;
+      return out;
     },
   };
+}
+
+export function lomadeeConnector(opts: Parameters<typeof lomadeeClient>[0]): Connector {
+  const client = lomadeeClient(opts);
+  return { id: "lomadee", search: (q, { limit }) => client.search(q.termo, limit) };
 }

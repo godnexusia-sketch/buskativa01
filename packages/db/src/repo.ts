@@ -500,3 +500,71 @@ export async function setProductShortUrl(db: Db, productId: number, shortUrl: st
     .set({ attributes: sql`${products.attributes} || jsonb_build_object('shortUrl', ${shortUrl}::text)` })
     .where(eq(products.id, productId));
 }
+
+/**
+ * Bulk upsert for a catalog sync (no search run): one insert for the products, one read of their latest prices,
+ * one insert of observations. A price is only recorded when it changed or the last one is older than `staleMs`,
+ * so repeated syncs don't flood the history.
+ */
+export async function syncCatalogOffers(
+  db: Db,
+  offers: Offer[],
+  at = new Date(),
+  staleMs = 24 * 3600e3,
+): Promise<{ products: number; observations: number }> {
+  const byKey = new Map<string, Offer>();
+  for (const o of offers) byKey.set(`${o.store}|${o.externalId}`, o);
+  const list = [...byKey.values()];
+  if (list.length === 0) return { products: 0, observations: 0 };
+  const saved = await db
+    .insert(products)
+    .values(
+      list.map((o) => ({
+        store: o.store,
+        externalId: o.externalId,
+        title: o.title,
+        url: o.url,
+        imageUrl: o.imageUrl ?? null,
+        attributes: o.attributes,
+        sellerName: o.sellerName ?? null,
+        sellerRating: o.sellerRating ?? null,
+        category: categorize(o.title),
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [products.store, products.externalId],
+      set: {
+        title: sql`excluded.title`,
+        url: sql`excluded.url`,
+        imageUrl: sql`excluded.image_url`,
+        sellerName: sql`excluded.seller_name`,
+        sellerRating: sql`excluded.seller_rating`,
+        category: sql`excluded.category`,
+        attributes: sql`excluded.attributes || jsonb_strip_nulls(jsonb_build_object('shortUrl', ${products.attributes}->'shortUrl'))`,
+      },
+    })
+    .returning({ id: products.id, store: products.store, externalId: products.externalId });
+  const ids = saved.map((r) => r.id);
+  const latest = await rows<{ product_id: number; price_cents: number; original_price_cents: number | null; observed_at: string | Date }>(
+    db,
+    sql`select distinct on (product_id) product_id, price_cents, original_price_cents, observed_at
+        from price_observations where product_id in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+        order by product_id, observed_at desc, id desc`,
+  );
+  const last = new Map(latest.map((r) => [Number(r.product_id), r]));
+  const fresh = saved.flatMap((r) => {
+    const o = byKey.get(`${r.store}|${r.externalId}`)!;
+    const priceCents = toCents(o.price);
+    const originalPriceCents = o.originalPrice === undefined ? null : toCents(o.originalPrice);
+    const prev = last.get(r.id);
+    const unchanged =
+      prev &&
+      Number(prev.price_cents) === priceCents &&
+      (prev.original_price_cents === null ? null : Number(prev.original_price_cents)) === originalPriceCents &&
+      at.getTime() - new Date(prev.observed_at).getTime() < staleMs;
+    if (unchanged) return [];
+    return [{ productId: r.id, priceCents, originalPriceCents, shippingCents: o.shipping === null ? null : toCents(o.shipping), observedAt: at }];
+  });
+  if (fresh.length) await db.insert(priceObservations).values(fresh);
+  return { products: saved.length, observations: fresh.length };
+}

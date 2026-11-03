@@ -57,9 +57,12 @@ export function CouponCard({ coupon, showStore = true }: { coupon: PublicCoupon;
         <div className="badges">
           <button type="button" className="ghost" onClick={() => vote(true)}>Funcionou</button>
           <button type="button" className="ghost" onClick={() => vote(false)}>Não funcionou</button>
-          {coupon.sourceUrl && (
-            <a className="muted" href={coupon.sourceUrl} target="_blank" rel="noopener noreferrer">ver origem</a>
-          )}
+          {coupon.sourceUrl &&
+            (coupon.store === "lomadee" ? (
+              <a className="btn btn-store" href={coupon.sourceUrl} target="_blank" rel="noopener sponsored">Usar na loja</a>
+            ) : (
+              <a className="muted" href={coupon.sourceUrl} target="_blank" rel="noopener noreferrer">ver origem</a>
+            ))}
         </div>
         {msg && <div className="muted" role="status">{msg}</div>}
       </div>

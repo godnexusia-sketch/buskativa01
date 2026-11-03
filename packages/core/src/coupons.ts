@@ -136,3 +136,28 @@ export function describeDiscount(type: DiscountType, value: number): string {
   if (type === "frete") return "Frete grátis";
   return `R$ ${(value / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de desconto`;
 }
+
+const brl = (s: string) => Math.round(Number(s.replace(/\./g, "").replace(",", ".")) * 100);
+
+/**
+ * Discount read from a coupon's own text ("20% OFF", "R$ 30,00 de desconto", "frete grátis", "acima de
+ * R$ 149,90"). Null when the text states no amount: such a coupon is not shown rather than guessed.
+ */
+export function parseCouponText(text: string): { discountType: DiscountType; discountValue: number; minOrderCents: number | null } | null {
+  const t = text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const min = t.match(/(?:acima|a partir) de r\$\s*([\d.]+(?:,\d{1,2})?)/);
+  const minOrderCents = min ? brl(min[1]) : null;
+  const pct = t.match(/(\d{1,2})(?:[.,]\d+)?\s*%/);
+  if (pct) {
+    const v = Number(pct[1]);
+    return v >= 1 && v <= 90 ? { discountType: "percent", discountValue: v, minOrderCents } : null;
+  }
+  // the fixed amount is the one not tied to the minimum order
+  const fixed = [...t.matchAll(/r\$\s*([\d.]+(?:,\d{1,2})?)/g)].find((m) => !min || m.index !== t.indexOf(min[0]) + min[0].indexOf(m[0]));
+  if (fixed && /desconto|off|\bde r\$/.test(t)) {
+    const v = brl(fixed[1]);
+    if (v > 0 && v !== minOrderCents) return { discountType: "fixed", discountValue: v, minOrderCents };
+  }
+  if (/frete gratis|frete gratuito/.test(t)) return { discountType: "frete", discountValue: 0, minOrderCents };
+  return null;
+}

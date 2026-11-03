@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { browserMaxContexts, closeBrowser, createConnectors } from "@buskativa/connectors";
+import { browserMaxContexts, closeBrowser, createConnectors, lomadeeClient } from "@buskativa/connectors";
 import { backfillCategories, createDb, listWatchedQueries, migrateDb, purgeExpiredData } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
@@ -8,6 +8,7 @@ import { positiveNumber } from "./env";
 import { createHealthServer } from "./health";
 import { attemptTimeoutMs, runSearch } from "./run-search";
 import { dueQueries, pickStartupQueries } from "./scheduler";
+import { syncLomadeeCatalog, syncLomadeeCoupons } from "./lomadee-sync";
 
 const log = pino({ name: "buskativa-worker" });
 const env = process.env;
@@ -82,12 +83,39 @@ const purgeOnce = () => purge().catch((err) => log.error({ err }, "falha na limp
 void purgeOnce();
 const purgeTimer = setInterval(purgeOnce, 24 * 60 * 60e3);
 
+// rede Lomadee: catálogo inteiro na partida e a cada LOMADEE_SYNC_HOURS (12); cupons a cada 3 h
+const lomadeeTimers: ReturnType<typeof setInterval>[] = [];
+if (env.LOMADEE_API_KEY) {
+  const lmd = lomadeeClient({ apiKey: env.LOMADEE_API_KEY });
+  let catalogRunning = false;
+  const catalog = async () => {
+    if (catalogRunning) return;
+    catalogRunning = true;
+    try {
+      log.info(await syncLomadeeCatalog(db, lmd), "lomadee: catálogo sincronizado");
+    } catch (err) {
+      log.error({ err }, "lomadee: falha no catálogo");
+    } finally {
+      catalogRunning = false;
+    }
+  };
+  const coupons = () =>
+    syncLomadeeCoupons(db, lmd)
+      .then((r) => log.info(r, "lomadee: cupons sincronizados"))
+      .catch((err) => log.error({ err }, "lomadee: falha nos cupons"));
+  void coupons();
+  setTimeout(() => void catalog(), 30e3);
+  const hours = positiveNumber("LOMADEE_SYNC_HOURS", env.LOMADEE_SYNC_HOURS, 12, warn);
+  lomadeeTimers.push(setInterval(() => void catalog(), hours * 3600e3), setInterval(() => void coupons(), 3 * 3600e3));
+}
+
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(timer);
   clearInterval(purgeTimer);
+  lomadeeTimers.forEach(clearInterval);
   let code = 0;
   // each step runs even if a previous one failed; the pool is always released
   const step = (name: string, fn: () => Promise<unknown>) =>

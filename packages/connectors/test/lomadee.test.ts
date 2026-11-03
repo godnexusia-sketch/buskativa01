@@ -1,6 +1,6 @@
 import { normalizeQuery } from "@buskativa/core";
 import { describe, expect, it } from "vitest";
-import { lomadeeConnector } from "../src/lomadee";
+import { lomadeeClient, lomadeeConnector } from "../src/lomadee";
 
 const q = normalizeQuery("air fryer");
 const product = (over: Record<string, unknown> = {}) => ({
@@ -82,5 +82,22 @@ describe("lomadeeConnector", () => {
     });
     const [o] = await noBrands.search(q, { limit: 5 });
     expect(o.sellerName).toBeUndefined();
+  });
+});
+
+describe("lomadeeClient.page", () => {
+  it("pede a página do catálogo com 100 itens e mapeia igual à busca", async () => {
+    let url = "";
+    const c = lomadeeClient({
+      apiKey: "k",
+      fetch: async (u) => {
+        if (String(u).includes("/brands")) return json({ data: [{ id: "org-1", name: "Friopeças", site: "friopecas.com.br" }] });
+        url = String(u);
+        return json({ data: [product()] });
+      },
+    });
+    const offers = await c.page(7);
+    expect(url).toBe("https://api.lomadee.com.br/affiliate/products?page=7&limit=100&isAvailable=true");
+    expect(offers[0]).toMatchObject({ externalId: "org-1:140059", sellerName: "Friopeças", price: 598 });
   });
 });

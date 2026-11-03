@@ -10,6 +10,7 @@ import { mercadoLivreConnector, mlAppToken } from "./mercadolivre";
 export { closeBrowser } from "./browser";
 export { FETCH_TIMEOUT_MS } from "./browser-connector";
 export { demoConnectors } from "./demo";
+export { lomadeeClient, type LomadeeCoupon } from "./lomadee";
 
 /** BROWSER_MAX_CONTEXTS: browser contexts open at once across all stores (default 1; one Chromium page fits 512 MB). */
 export function browserMaxContexts(env: Record<string, string | undefined>): number {

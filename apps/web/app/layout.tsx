@@ -68,10 +68,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <a href="/contato">Contato</a>
             <CookieSettingsButton />
           </nav>
-          <p className="muted">
-            Alguns links são de afiliado: se você comprar por eles, o BUSKATIVA pode receber uma comissão, sem custo
-            extra para você. Preços e disponibilidade podem mudar na loja.
-          </p>
         </footer>
         <CookieBanner />
         <Analytics />
