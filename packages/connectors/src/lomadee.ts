@@ -99,6 +99,18 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
     return byId;
   };
 
+  // a brand missing from the list (not every coupon brand is listed) is fetched once by id and kept
+  const brandFor = async (byId: Map<string, LomadeeBrand>, id: string): Promise<LomadeeBrand | undefined> => {
+    if (byId.has(id)) return byId.get(id);
+    try {
+      const body = await get<{ data?: LomadeeBrand }>(`/affiliate/brands/${encodeURIComponent(id)}`);
+      if (body.data?.id) byId.set(id, body.data);
+      return body.data;
+    } catch {
+      return undefined;
+    }
+  };
+
   const products = async (query: string): Promise<Offer[]> => {
     const [body, byId] = await Promise.all([
       get<{ data?: LomadeeProduct[] }>(`/affiliate/products?${query}&isAvailable=true`),
@@ -154,7 +166,7 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
           out.push({
             code: c.code.trim(),
             name: c.name.replace(/\s+/g, " ").trim(),
-            brand: byId.get(c.organizationId)?.name?.trim() ?? null,
+            brand: (await brandFor(byId, c.organizationId))?.name?.trim() ?? null,
             endAt: c.period?.endAt ?? null,
             shortUrl: c.channels?.flatMap((ch) => ch.shortUrls ?? []).find((u) => u.startsWith("https://")) ?? null,
           });

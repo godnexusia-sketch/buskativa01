@@ -150,3 +150,22 @@ describe("lomadeeClient.coupons", () => {
     expect(await c.coupons()).toEqual([{ code: "SINETE10", name: "10% de desconto em todo site", brand: "Sinete", endAt: null, shortUrl: null }]);
   });
 });
+
+describe("lomadeeClient: marca fora da lista", () => {
+  it("busca a marca pelo id e guarda", async () => {
+    const asked: string[] = [];
+    const c = lomadeeClient({
+      apiKey: "k",
+      retryMs: 0,
+      fetch: async (u) => {
+        const url = String(u);
+        asked.push(url);
+        if (url.includes("/brands/o2")) return json({ data: { id: "o2", name: "Malwee" } });
+        if (url.includes("/brands")) return json({ data: [] });
+        return json({ data: [{ code: "A10", name: "10% OFF", organizationId: "o2" }, { code: "B10", name: "10% OFF", organizationId: "o2" }], meta: { totalPages: 1 } });
+      },
+    });
+    expect((await c.coupons()).map((x) => x.brand)).toEqual(["Malwee", "Malwee"]);
+    expect(asked.filter((u) => u.includes("/brands/o2"))).toHaveLength(1);
+  });
+});
