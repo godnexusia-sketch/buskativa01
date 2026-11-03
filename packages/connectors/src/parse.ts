@@ -1,4 +1,4 @@
-import { type Offer, parseBRL, type StoreId } from "@buskativa/core";
+import { type Offer, parseAllBRL, parseBRL, type StoreId } from "@buskativa/core";
 import * as cheerio from "cheerio";
 
 const abs = (href: string, base: string) => new URL(href, base).toString();
@@ -74,7 +74,9 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
 
     let card = a.parent();
     for (let i = 0; i < 5 && card.length && parseBRL(card.text()) === null; i++) card = card.parent();
-    const price = parseBRL(card.text());
+    // cards often show "de R$ 399,00 por R$ 279,90": the lowest amount is the current price
+    const prices = parseAllBRL(card.text());
+    const price = prices.length > 0 ? Math.min(...prices) : null;
     const title = (
       a.attr("title") ||
       a.find("img").attr("alt") ||

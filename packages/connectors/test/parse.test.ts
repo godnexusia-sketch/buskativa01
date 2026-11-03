@@ -47,7 +47,7 @@ describe("parseAnchors", () => {
       externalId: "237896300",
       title: "Fone de Ouvido JBL Tune 520BT",
       url: "https://www.magazineluiza.com.br/fone-de-ouvido-jbl/p/237896300/ea/fone/",
-      price: 399,
+      price: 279.9,
       imageUrl: "https://a-static.mlcdn.com.br/jbl.jpg",
     });
     expect(offers[1]).toMatchObject({ externalId: "abc123def", title: "Caixa de Som JBL Go 3", price: 199 });
