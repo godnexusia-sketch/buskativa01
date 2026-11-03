@@ -1,5 +1,5 @@
 import { matchesAttributes } from "./query";
-import { isAllowedUrl } from "./stores";
+import { isAllowedOffer } from "./stores";
 import { tokens } from "./text";
 import type { NormalizedQuery, Offer } from "./types";
 
@@ -24,7 +24,7 @@ export function filterOffers(
   const minRating = opts.minSellerRating ?? 4;
   const base = offers.filter(
     (o) =>
-      isAllowedUrl(o.url, o.store) &&
+      isAllowedOffer(o) &&
       (o.sellerRating === undefined || o.sellerRating >= minRating) &&
       (q.tipo === "generica" || matchesAttributes(o.title, q.atributos)),
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { affiliateUrl } from "../src/affiliate";
-import { isAllowedUrl, storeForUrl } from "../src/stores";
+import { isAllowedOffer, isAllowedUrl, storeForUrl } from "../src/stores";
 
 describe("storeForUrl / isAllowedUrl", () => {
   it("reconhece domínios e subdomínios permitidos", () => {
@@ -39,5 +39,17 @@ describe("affiliateUrl", () => {
 
   it("lança erro para URL fora da allowlist", () => {
     expect(() => affiliateUrl("https://evil.com/x", "amazon", {})).toThrow(/allowlist/);
+  });
+});
+
+describe("isAllowedOffer", () => {
+  it("Lomadee só no site da loja informado; as demais pelos domínios da loja", () => {
+    const lmd = (url: string, site?: string) => ({ url, store: "lomadee" as const, attributes: (site ? { site } : {}) as Record<string, string> });
+    expect(isAllowedOffer(lmd("https://www.friopecas.com.br/af/p", "friopecas.com.br"))).toBe(true);
+    expect(isAllowedOffer(lmd("https://loja.friopecas.com.br/af/p", "friopecas.com.br"))).toBe(true);
+    expect(isAllowedOffer(lmd("https://friopecas.com.br.evil.com/p", "friopecas.com.br"))).toBe(false);
+    expect(isAllowedOffer(lmd("http://www.friopecas.com.br/p", "friopecas.com.br"))).toBe(false);
+    expect(isAllowedOffer(lmd("https://www.friopecas.com.br/p"))).toBe(false);
+    expect(isAllowedOffer({ url: "https://www.amazon.com.br/dp/X", store: "amazon", attributes: {} })).toBe(true);
   });
 });

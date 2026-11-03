@@ -1,4 +1,4 @@
-import { affiliateUrl } from "@buskativa/core";
+import { affiliateUrl, onBrandSite } from "@buskativa/core";
 import { type Db, getProduct, recordClick, setProductShortUrl } from "@buskativa/db";
 import { lomadeeShortUrl } from "./lomadee-link";
 
@@ -12,18 +12,6 @@ export class RedirectNotAllowedError extends Error {
 type Product = NonNullable<Awaited<ReturnType<typeof getProduct>>>;
 
 const isShortLink = (u: string | null | undefined): u is string => !!u && u.startsWith("https://lmdee.link/");
-
-/** Same host as the store site Lomadee reported for the brand (www. ignored). */
-function onBrandSite(url: string, site: string | undefined): boolean {
-  if (!site) return false;
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    return u.protocol === "https:" && (host === site || host.endsWith(`.${site}`));
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Lomadee products go through the network's affiliate short link, created on the first click and cached on the

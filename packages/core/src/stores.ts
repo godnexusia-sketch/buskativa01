@@ -31,3 +31,20 @@ export function isAllowedUrl(url: string, store?: StoreId): boolean {
   const found = storeForUrl(url);
   return found !== null && (store === undefined || found === store);
 }
+
+/** https page on the store site Lomadee reported for the brand ("www." ignored); false without a site. */
+export function onBrandSite(url: string, site: string | undefined): boolean {
+  if (!site) return false;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    return u.protocol === "https:" && (host === site || host.endsWith(`.${site}`));
+  } catch {
+    return false;
+  }
+}
+
+/** Offer links come from the store's own domains; Lomadee ones from the brand site reported with the product. */
+export function isAllowedOffer(o: { url: string; store: StoreId; attributes: Record<string, string> }): boolean {
+  return o.store === "lomadee" ? onBrandSite(o.url, o.attributes.site) : isAllowedUrl(o.url, o.store);
+}
