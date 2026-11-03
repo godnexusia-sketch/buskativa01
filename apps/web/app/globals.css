@@ -65,6 +65,7 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 /* ---------- hero ---------- */
 .hero { background: var(--hero); color: var(--hero-ink); margin: -12px -16px 0; padding: 20px 16px 26px; display: grid; gap: 18px; }
 .hero h1 { font-size: clamp(30px, 7.5vw, 56px); font-weight: 800; letter-spacing: -0.035em; max-width: 14ch; margin: 0; }
+.hero > *, .top-inner > *, .catalog > *, .pdp > * { min-width: 0; }
 .hero-copy p { color: var(--hero-muted); max-width: 52ch; margin: 12px 0 16px; }
 .hero-suggest { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
 .hero-suggest::-webkit-scrollbar { display: none; }
