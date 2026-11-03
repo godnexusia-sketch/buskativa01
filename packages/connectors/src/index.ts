@@ -4,7 +4,7 @@ import { browserConnector } from "./browser-connector";
 import { BROWSER_STORES } from "./browser-stores";
 import { demoConnectors } from "./demo";
 import { createLimiter } from "./limiter";
-import { mercadoLivreConnector } from "./mercadolivre";
+import { mercadoLivreConnector, mlAppToken } from "./mercadolivre";
 
 export { closeBrowser } from "./browser";
 export { FETCH_TIMEOUT_MS } from "./browser-connector";
@@ -19,7 +19,12 @@ export function browserMaxContexts(env: Record<string, string | undefined>): num
 export function createConnectors(env: Record<string, string | undefined>): Connector[] {
   if (env.CONNECTORS === "demo") return demoConnectors();
   const contextSlots = createLimiter(browserMaxContexts(env), 0);
-  const list: Connector[] = [mercadoLivreConnector({ accessToken: env.ML_ACCESS_TOKEN })];
+  // ML_CLIENT_ID + ML_CLIENT_SECRET renew the token by themselves; ML_ACCESS_TOKEN alone expires in 6 h
+  const token =
+    env.ML_CLIENT_ID && env.ML_CLIENT_SECRET
+      ? mlAppToken({ clientId: env.ML_CLIENT_ID, clientSecret: env.ML_CLIENT_SECRET })
+      : undefined;
+  const list: Connector[] = [mercadoLivreConnector({ accessToken: env.ML_ACCESS_TOKEN, token })];
   list.push(
     env.AMAZON_PAAPI_ACCESS_KEY && env.AMAZON_PAAPI_SECRET_KEY && env.AMAZON_PAAPI_PARTNER_TAG
       ? amazonPaapiConnector({

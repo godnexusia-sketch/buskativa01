@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { ConnectorError, normalizeQuery } from "@buskativa/core";
 import { describe, expect, it } from "vitest";
-import { mercadoLivreConnector } from "../src/mercadolivre";
+import { mercadoLivreConnector, mlAppToken } from "../src/mercadolivre";
 
 const fixture = readFileSync(new URL("../fixtures/mercadolivre-search.json", import.meta.url), "utf8");
 const q = normalizeQuery("fone bluetooth");
@@ -72,5 +72,52 @@ describe("mercadoLivreConnector", () => {
     });
     await expect(c.search(q, { limit: 10 })).rejects.toMatchObject({ code: "TIMEOUT" });
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("com token renovável, troca o token e repete uma vez após 401", async () => {
+    const tokens = ["velho", "novo"];
+    let invalidated = 0;
+    const seen: (string | null)[] = [];
+    const c = mercadoLivreConnector({
+      token: { get: async () => tokens[invalidated], invalidate: () => invalidated++ },
+      fetch: async (_url, init) => {
+        const auth = new Headers(init?.headers).get("authorization");
+        seen.push(auth);
+        return auth === "Bearer novo" ? new Response(fixture, { status: 200 }) : new Response("", { status: 401 });
+      },
+    });
+    expect(await c.search(q, { limit: 10 })).toHaveLength(2);
+    expect(seen).toEqual(["Bearer velho", "Bearer novo"]);
+  });
+});
+
+describe("mlAppToken", () => {
+  it("pede por client_credentials, guarda até perto de expirar e renova depois", async () => {
+    let t = 0;
+    const bodies: string[] = [];
+    const tok = mlAppToken({
+      clientId: "app",
+      clientSecret: "seg",
+      now: () => t,
+      fetch: async (url, init) => {
+        expect(String(url)).toBe("https://api.mercadolibre.com/oauth/token");
+        bodies.push(String(init?.body));
+        return new Response(JSON.stringify({ access_token: `t${bodies.length}`, expires_in: 21600 }));
+      },
+    });
+    const [a, b] = await Promise.all([tok.get(), tok.get()]);
+    expect([a, b]).toEqual(["t1", "t1"]);
+    expect(bodies).toEqual(["grant_type=client_credentials&client_id=app&client_secret=seg"]);
+    t = (21600 - 301) * 1000;
+    expect(await tok.get()).toBe("t1");
+    t = (21600 - 299) * 1000;
+    expect(await tok.get()).toBe("t2");
+    tok.invalidate();
+    expect(await tok.get()).toBe("t3");
+  });
+
+  it("credencial recusada vira BLOCKED", async () => {
+    const tok = mlAppToken({ clientId: "a", clientSecret: "b", fetch: async () => new Response("", { status: 400 }) });
+    await expect(tok.get()).rejects.toMatchObject({ code: "BLOCKED" });
   });
 });

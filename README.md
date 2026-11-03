@@ -33,7 +33,8 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `DB_POOL_MAX` | Conexões máximas do pool por processo, web e worker (padrão 5) |
 | `REDIS_URL` | Redis da fila |
 | `CONNECTORS` | `demo` para lojas falsas; vazio para as reais |
-| `ML_ACCESS_TOKEN` | Token do Mercado Livre, se a API de busca exigir |
+| `ML_CLIENT_ID` / `ML_CLIENT_SECRET` | App do Mercado Livre (developers.mercadolivre.com.br); o worker pede e renova o token sozinho |
+| `ML_ACCESS_TOKEN` | Token fixo do Mercado Livre (expira em 6 h; prefira o par acima) |
 | `AMAZON_PAAPI_*` | Credenciais do PA-API; sem elas a Amazon usa o navegador |
 | `KWAI_ENABLED` | `true` liga o conector experimental do Kwai Shop |
 | `SEARCH_INTERVAL_MIN` / `SEARCH_FAST_INTERVAL_MIN` | Intervalo das buscas recorrentes (60 / 30) |
@@ -129,7 +130,7 @@ Resultado do smoke test ao vivo (consulta "fone bluetooth", 2026-11-02):
 |---|---|
 | Amazon | ok (60 ofertas, via navegador) |
 | AliExpress | ok (9 ofertas, via navegador) |
-| Mercado Livre | bloqueado (HTTP 403) — precisa de `ML_ACCESS_TOKEN` |
+| Mercado Livre | bloqueado (HTTP 403) — precisa de `ML_CLIENT_ID` e `ML_CLIENT_SECRET` |
 | Magalu | bloqueado (página anti-robô) |
 | Shopee | bloqueado (verificação de tráfego) — usar API de afiliados no futuro |
 | TikTok Shop | bloqueado (página vazia) |

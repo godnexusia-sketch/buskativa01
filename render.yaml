@@ -81,6 +81,10 @@ services:
         value: "60"
       - key: SEARCH_FAST_INTERVAL_MIN
         value: "30"
+      - key: ML_CLIENT_ID
+        sync: false
+      - key: ML_CLIENT_SECRET
+        sync: false
       - key: ML_ACCESS_TOKEN
         sync: false
       - key: AMAZON_PAAPI_ACCESS_KEY
