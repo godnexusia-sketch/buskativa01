@@ -1,4 +1,13 @@
-import { type Connector, ConnectorError, filterOffers, type NormalizedQuery, normalizeQuery, type Offer } from "@buskativa/core";
+import {
+  type Connector,
+  ConnectorError,
+  type ConnectorErrorCode,
+  filterOffers,
+  type NormalizedQuery,
+  normalizeQuery,
+  type Offer,
+  type StoreId,
+} from "@buskativa/core";
 import { FETCH_TIMEOUT_MS } from "@buskativa/connectors";
 import { createRun, type Db, finishRun, saveOffers, updateRunStoreStatus, upsertQuery } from "@buskativa/db";
 
@@ -42,14 +51,23 @@ export async function runConnector(
   }
 }
 
+export interface RunSummary {
+  runId: number;
+  ok: number;
+  failed: number;
+  failures: Partial<Record<StoreId, ConnectorErrorCode>>;
+}
+
 export async function runSearch(
   deps: { db: Db; connectors: Connector[]; limit?: number; retryDelayMs?: number; attemptTimeoutMs?: number },
   text: string,
   runId?: number,
-): Promise<number> {
+): Promise<RunSummary> {
   const nq = normalizeQuery(text);
   const query = await upsertQuery(deps.db, nq);
   const id = runId ?? (await createRun(deps.db, query.id));
+  const failures: RunSummary["failures"] = {};
+  let ok = 0;
 
   await Promise.allSettled(
     deps.connectors.map(async (c) => {
@@ -61,13 +79,15 @@ export async function runSearch(
         const offers = filterOffers(raw, nq);
         await saveOffers(deps.db, id, offers);
         await updateRunStoreStatus(deps.db, id, c.id, { ok: true, count: offers.length });
+        ok++;
       } catch (e) {
         const err = asConnectorError(e);
+        failures[c.id] = err.code;
         await updateRunStoreStatus(deps.db, id, c.id, { ok: false, error: err.code, message: err.message.slice(0, 200) });
       }
     }),
   );
 
   await finishRun(deps.db, id);
-  return id;
+  return { runId: id, ok, failed: Object.keys(failures).length, failures };
 }

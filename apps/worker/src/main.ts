@@ -4,6 +4,7 @@ import { createDb, listWatchedQueries, migrateDb } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
 import pino from "pino";
+import { positiveNumber } from "./env";
 import { attemptTimeoutMs, runSearch } from "./run-search";
 import { dueQueries, pickStartupQueries } from "./scheduler";
 
@@ -17,20 +18,24 @@ await migrateDb(db);
 const connection = redisConnection(env.REDIS_URL);
 const connectors = createConnectors(env);
 const queue = createSearchQueue(connection);
-const baseMin = Number(env.SEARCH_INTERVAL_MIN ?? 60);
-const fastMin = Number(env.SEARCH_FAST_INTERVAL_MIN ?? 30);
-const concurrency = Number(env.WORKER_CONCURRENCY ?? 3);
+const warn = (msg: string) => log.warn(msg);
+const baseMin = positiveNumber("SEARCH_INTERVAL_MIN", env.SEARCH_INTERVAL_MIN, 60, warn);
+const fastMin = positiveNumber("SEARCH_FAST_INTERVAL_MIN", env.SEARCH_FAST_INTERVAL_MIN, 30, warn);
+const concurrency = positiveNumber("WORKER_CONCURRENCY", env.WORKER_CONCURRENCY, 3, warn, { integer: true });
 const searchDeps = { db, connectors, attemptTimeoutMs: attemptTimeoutMs(concurrency) };
 
 const worker = new Worker<SearchJob>(
   QUEUE_NAME,
   async (job) => {
-    const runId = await runSearch(searchDeps, job.data.text, job.data.runId);
-    log.info({ runId, text: job.data.text }, "busca concluída");
+    const { runId, ok, failed, failures } = await runSearch(searchDeps, job.data.text, job.data.runId);
+    log.info({ runId, text: job.data.text, ok, failed, failures }, "busca concluída");
   },
   { connection, concurrency },
 );
 worker.on("failed", (job, err) => log.error({ err, text: job?.data.text }, "job falhou"));
+// sem listener de "error", um erro de conexão com o Redis vira exceção não tratada
+worker.on("error", (err) => log.error({ err }, "erro no worker"));
+queue.on("error", (err) => log.error({ err }, "erro na fila"));
 
 const trending: string[] = JSON.parse(readFileSync(new URL("../seed/trending.json", import.meta.url), "utf8"));
 const watched = (await listWatchedQueries(db, 20)).map((q) => q.original);
@@ -45,13 +50,26 @@ async function tick() {
 }
 const timer = setInterval(() => tick().catch((err) => log.error({ err }, "falha no agendador")), 5 * 60e3);
 
+let shuttingDown = false;
 async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   clearInterval(timer);
-  await worker.close();
-  await queue.close();
-  await closeBrowser();
-  await pool.end();
-  process.exit(0);
+  let code = 0;
+  // each step runs even if a previous one failed; the pool is always released
+  const step = (name: string, fn: () => Promise<unknown>) =>
+    fn().catch((err) => {
+      code = 1;
+      log.error({ err }, `falha ao encerrar: ${name}`);
+    });
+  try {
+    await step("worker", () => worker.close());
+    await step("fila", () => queue.close());
+    await step("navegador", () => closeBrowser());
+  } finally {
+    await step("banco", () => pool.end());
+    process.exit(code);
+  }
 }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);

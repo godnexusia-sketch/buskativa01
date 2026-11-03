@@ -86,8 +86,9 @@ describe("runSearch", () => {
         },
       },
     ];
-    const runId = await runSearch({ db, connectors, retryDelayMs: 1 }, "fone bluetooth");
-    const run = await getRunWithResults(db, runId);
+    const summary = await runSearch({ db, connectors, retryDelayMs: 1 }, "fone bluetooth");
+    expect(summary).toMatchObject({ ok: 1, failed: 2, failures: { shopee: "BLOCKED", magalu: "NETWORK" } });
+    const run = await getRunWithResults(db, summary.runId);
     expect(run!.status).toBe("done");
     expect(run!.results.map((r) => r.priceCents)).toEqual([9000, 12000]);
     expect(run!.storeStatus.mercadolivre).toEqual({ ok: true, count: 2 });
