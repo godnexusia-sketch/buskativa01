@@ -29,7 +29,7 @@ function amounts(text: string): Amount[] {
       if (value === null) return [];
       const start = m.index ?? 0;
       const end = start + m[0].length;
-      return [{ value, before: text.slice(Math.max(0, start - 40), start), after: text.slice(end, end + 20) }];
+      return [{ value, before: text.slice(Math.max(0, start - 40), start), after: text.slice(end, end + 40) }];
     });
   const withSymbol = collect(WITH_SYMBOL_SRC);
   return withSymbol.length > 0 ? withSymbol : collect(WITHOUT_SYMBOL_SRC);
@@ -45,7 +45,10 @@ const INSTALLMENT_BEFORE = /\d+\s*x\s*(?:\p{L}+\s*){0,3}$/iu;
 const EXTRA_BEFORE =
   /(?:(?:frete|entrega)\s+gr[aá]tis\s+(?:acima de|a partir de)|(?:frete|entrega|cashback|economize|desconto|ganhe)\s*:?\s*(?:de\s*)?)\s*$/i;
 const EXTRA_AFTER =
-  /^\s*(?:(?:de\s+)?(?:cashback|desconto|off|frete|volta)\b|(?:por|ao)\s+m[eê]s\b|\/\s*m[eê]s\b|\/\s*un\b|\/\s*\d+\s*(?:kg|g|ml|l)\b)/i;
+  /^\s*(?:(?:de\s+)?(?:cashback|desconto|off)\b|de\s+(?:frete|volta)\b|(?:por|ao)\s+m[eê]s\b|\/\s*m[eê]s\b|\/\s*un\b|\/\s*\d+\s*(?:kg|g|ml|l)\b)/iu;
+// "R$ 1.199 em 10x" is an installment total, unlike "R$ 279,90 em 10x R$ 27,99"
+const INSTALLMENT_TOTAL_AFTER =
+  /^\s*em\s+(?:até\s+)?\d+\s*x(?!\s*(?:\p{L}+\s*){0,3}(?:R\$\s*)?\d)/iu;
 // a candidate far below the largest one is an unrelated figure (unit price, tip, fee)
 const MIN_SHARE_OF_LARGEST = 0.1;
 
@@ -53,6 +56,8 @@ export interface CardPrices {
   price: number;
   /** Largest non-excluded amount, when it is greater than `price` (the old "de" price). */
   originalPrice?: number;
+  /** "app" or "pix" when the text right after the chosen price says so. */
+  pagamento?: "app" | "pix";
 }
 
 /**
@@ -65,23 +70,31 @@ export function pickCardPrices(text: string): CardPrices | null {
   const all = amounts(text).filter((a) => a.value > 0);
   if (all.length === 0) return null;
   const kept = all.filter(
-    (a) => !INSTALLMENT_BEFORE.test(a.before) && !EXTRA_BEFORE.test(a.before) && !EXTRA_AFTER.test(a.after),
+    (a) => !INSTALLMENT_BEFORE.test(a.before) && !EXTRA_BEFORE.test(a.before) && !EXTRA_AFTER.test(a.after) &&
+      !INSTALLMENT_TOTAL_AFTER.test(a.after),
   );
   if (kept.length === 0) return { price: all[0].value };
   const largest = Math.max(...kept.map((a) => a.value));
   const values = kept.map((a) => a.value).filter((v) => v >= largest * MIN_SHARE_OF_LARGEST);
   const price = Math.min(...values);
-  return largest > price ? { price, originalPrice: largest } : { price };
+  const chosen = kept.find((a) => a.value === price)!;
+  const pagamento = detectPagamento(chosen.after);
+  return {
+    price,
+    ...(largest > price ? { originalPrice: largest } : {}),
+    ...(pagamento ? { pagamento } : {}),
+  };
 }
 
 export function pickCardPrice(text: string): number | null {
   return pickCardPrices(text)?.price ?? null;
 }
 
-/** Whether the card says the price only applies in the app or via Pix. */
-export function detectPagamento(text: string): "app" | "pix" | undefined {
-  if (/(?:no|pelo) app\b|exclusivo (?:no|do) app\b/i.test(text)) return "app";
-  if (/no pix\b|à vista no pix\b/i.test(text)) return "pix";
+/** Whether the text right after the price (about 30 characters) says it only applies in the app or via Pix. */
+export function detectPagamento(afterPrice: string): "app" | "pix" | undefined {
+  const near = afterPrice.slice(0, 30);
+  if (/(?<!desconto\s)(?:(?:no|pelo) app|exclusivo (?:no|do) app)\b/i.test(near)) return "app";
+  if (/(?<!desconto\s)no pix\b/i.test(near)) return "pix";
   return undefined;
 }
 

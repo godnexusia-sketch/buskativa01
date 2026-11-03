@@ -1,4 +1,4 @@
-import { detectPagamento, type Offer, parseBRL, pickCardPrices, type StoreId, withOriginalPrice } from "@buskativa/core";
+import { type Offer, parseBRL, pickCardPrices, type StoreId, withOriginalPrice } from "@buskativa/core";
 import * as cheerio from "cheerio";
 import type { Cheerio, CheerioAPI } from "cheerio";
 
@@ -101,7 +101,7 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
     ).trim();
     if (prices === null || !title) return;
 
-    const pagamento = detectPagamento(cardText);
+    const pagamento = prices.pagamento;
     seen.add(externalId);
     const img = card.find("img").first().attr("src");
     offers.push({

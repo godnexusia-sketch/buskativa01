@@ -94,6 +94,11 @@ describe("preço original e forma de pagamento", () => {
     expect("originalPrice" in sem).toBe(false);
   });
 
+  it("parseAmazon ignora card que só tem o preço riscado", () => {
+    const html = amazonCard('<span class="a-price a-text-price"><span class="a-offscreen">R$ 349,90</span></span>');
+    expect(parseAmazon(html, "https://www.amazon.com.br/")).toEqual([]);
+  });
+
   const jsonLd = (offers: unknown) =>
     `<script type="application/ld+json">${JSON.stringify({
       "@type": "Product",
