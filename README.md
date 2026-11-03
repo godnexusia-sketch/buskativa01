@@ -38,6 +38,12 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `ADMIN_TOKEN` | Token Bearer das rotas `/api/admin/*`; sem ele respondem 503 |
 | `TRUSTED_IP_HEADER` | Opcional: cabeçalho de IP confiável definido pela sua CDN (ex.: `cf-connecting-ip`) |
 | `VOTE_SALT` | Sal do hash (sha256) do IP nos votos de cupom; sem ele a votação responde 503 |
+| `WORKER_CONCURRENCY` | Buscas simultâneas no worker (3 por padrão; o `render.yaml` usa 1 por causa do Chromium em 512 MB) |
+| `PORT` | Worker: se definida, abre o health check HTTP (`/` e `/healthz`); o Render a injeta |
+| `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_CONTROLLER_NAME` | URL canônica, e-mail de contato e nome do controlador (LGPD) |
+| `GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_ADSENSE_CLIENT`, `NEXT_PUBLIC_ADSENSE_SLOT_HOME` / `_RESULTS` / `_PRODUCT` | Integrações Google, veja "Ligar o Google" |
+
+As variáveis `NEXT_PUBLIC_*` são embutidas no site durante o build: depois de mudar uma, faça um novo deploy do `buskativa-web`.
 
 ## Cadastrar cupons
 
@@ -66,12 +72,39 @@ curl -X POST https://SEU-SITE/api/admin/cupons \
 - Os visitantes votam "Funcionou" / "Não funcionou" em `/cupons` (um voto por pessoa, 10 por minuto por IP). Com 3 votos ou mais, a confiança vem da taxa de sucesso.
 - O voto não usa cookie: guardamos só sha256(IP + `VOTE_SALT`), nunca o IP em claro. Há um voto por cupom por IP (trocável), então pessoas atrás do mesmo IP compartilham o voto.
 
-## Deploy (Render + Supabase)
+## Deploy no Render
 
-1. Crie um projeto no Supabase e copie a connection string (modo "session") para `DATABASE_URL`.
-2. No Render, crie um Blueprint apontando para este repositório (usa `render.yaml`).
-3. Preencha as variáveis marcadas como `sync: false`.
-4. O worker roda as migrações ao iniciar e já dispara 20 buscas.
+1. **Supabase:** crie um projeto e, em *Connect*, copie a connection string do **Session pooler** (porta 5432, host `...pooler.supabase.com`; o endereço direto só tem IPv6 e o Render não alcança). Troque `[YOUR-PASSWORD]` pela senha do banco. Ela será o `DATABASE_URL`.
+2. **Blueprint:** no Render, *New > Blueprint*, escolha este repositório (o Render lê o `render.yaml`). Serão criados `buskativa-web`, `buskativa-worker` (ambos Web Service Docker, plano `starter`, região `oregon`, a mais próxima do Brasil) e o Key Value `buskativa-redis` (plano gratuito). `REDIS_URL`, `ADMIN_TOKEN` e `VOTE_SALT` são preenchidos sozinhos.
+3. **Variáveis:** o Render pede as marcadas `sync: false`. Cole o mesmo `DATABASE_URL` nos dois serviços. Preencha `NEXT_PUBLIC_SITE_URL` com a URL pública do web (ex.: `https://buskativa-web.onrender.com`; se o Render acrescentar um sufixo ao nome, use a URL real e atualize depois). Tudo o que for opcional (Google, afiliados, `ML_ACCESS_TOKEN`, PA-API) pode ficar vazio e ser preenchido depois.
+4. **Primeira subida:** o worker roda as migrações ao iniciar e já enfileira 20 buscas. O web só deve receber tráfego depois disso (deixe o worker subir primeiro, ou faça um *Manual Deploy* do web em seguida).
+5. **Health checks:** o web usa `/`; o worker usa `/healthz`, que responde 200 com `{"ok":true,"queue":"connected"}`. É teste de vida: continua 200 enquanto o Redis reconecta (campo `queue` vira `disconnected`), porque reiniciar o container por isso só derrubaria o Chromium.
+6. **Admin:** o valor gerado de `ADMIN_TOKEN` fica em *Environment* do `buskativa-web`; use-o para cadastrar cupons (seção acima).
+
+O Chromium do worker precisa de memória: com `WORKER_CONCURRENCY=1` o plano `starter` (512 MB) comporta uma busca por vez. Para aumentar a concorrência, suba o plano antes.
+
+## Ligar o Google
+
+Todas as integrações são opcionais e só carregam se a variável existir. Depois de mudar qualquer `NEXT_PUBLIC_*`, faça novo deploy do `buskativa-web` (elas são lidas no build). O banner de cookies e o Consent Mode v2 já estão ativos: tudo nasce negado até o visitante aceitar.
+
+**1. Google Analytics 4**
+1. Em [analytics.google.com](https://analytics.google.com), crie uma propriedade GA4 e um fluxo de dados da Web com a URL do site.
+2. Copie o *ID da métrica* (formato `G-XXXXXXXXXX`).
+3. No Render, `buskativa-web` > *Environment*: `NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX`, e faça redeploy.
+4. Aceite o banner no site e confira em *Relatórios > Tempo real*.
+
+**2. Search Console**
+1. Em [search.google.com/search-console](https://search.google.com/search-console), adicione uma propriedade do tipo **Prefixo do URL** com `NEXT_PUBLIC_SITE_URL`.
+2. Escolha o método **Tag HTML** e copie só o valor de `content="..."` da tag `google-site-verification`.
+3. Defina `GOOGLE_SITE_VERIFICATION=<valor>` no Render, faça redeploy e clique em *Verificar*.
+4. Em *Sitemaps*, envie `SEU-SITE/sitemap.xml` (home, ofertas, cupons, páginas institucionais e os produtos). O `robots.txt` já aponta para ele.
+
+**3. AdSense**
+1. A aprovação exige um site com conteúdo e páginas institucionais; elas já existem: `/privacidade`, `/termos`, `/sobre` e `/contato`. Publique o site e deixe-o rodando com produtos antes de pedir.
+2. Em [adsense.google.com](https://adsense.google.com), cadastre o site (a URL de `NEXT_PUBLIC_SITE_URL`).
+3. Defina `NEXT_PUBLIC_ADSENSE_CLIENT=ca-pub-XXXXXXXXXXXXXXXX` (ID do editor) e faça redeploy. O script do AdSense passa a carregar e **`/ads.txt` é gerado automaticamente** com `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`; sem a variável, `/ads.txt` responde 404.
+4. Depois da aprovação, crie três blocos de anúncio (*Anúncios > Por bloco de anúncios*) e copie o ID numérico de cada um para `NEXT_PUBLIC_ADSENSE_SLOT_HOME`, `NEXT_PUBLIC_ADSENSE_SLOT_RESULTS` e `NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT`. Sem o slot, o espaço do anúncio não aparece.
+5. Os anúncios só são personalizados para quem aceitou o banner de cookies.
 
 O limite de requisições (rate limit) identifica o cliente pelo salto mais à direita de `x-forwarded-for` (o adicionado pelo proxy do Render); cabeçalhos como `cf-connecting-ip` ou `x-real-ip` são ignorados porque o cliente pode forjá-los. Se houver uma CDN sua na frente (e o app só for acessível por ela), defina `TRUSTED_IP_HEADER` (ex.: `cf-connecting-ip`) para confiar nesse único cabeçalho. O limite fica em memória por instância, então não é compartilhado entre réplicas.
 
