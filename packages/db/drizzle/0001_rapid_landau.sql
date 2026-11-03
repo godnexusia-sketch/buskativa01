@@ -1,0 +1,1 @@
+CREATE INDEX "price_obs_time" ON "price_observations" USING btree ("observed_at");
