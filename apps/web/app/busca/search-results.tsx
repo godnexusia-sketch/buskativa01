@@ -2,6 +2,7 @@
 import { STORES } from "@buskativa/core/stores";
 import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
+import { applyOfferView, parseReais, type OfferOrder } from "../../lib/offer-filters";
 import { PriceBadges } from "../price-badges";
 import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
@@ -31,6 +32,10 @@ export function SearchResults({ q }: { q: string }) {
   const [error, setError] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
   const [couponCounts, setCouponCounts] = useState<Record<string, number>>({});
+  const [store, setStore] = useState("");
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+  const [order, setOrder] = useState<OfferOrder>("relevancia");
 
   useEffect(() => {
     // coupon chips are a nicety: any failure just hides them
@@ -90,8 +95,10 @@ export function SearchResults({ q }: { q: string }) {
   if (error) return <p className="chip fail">{error}</p>;
   if (!data) return <p className="muted">Procurando nas lojas…</p>;
 
-  const groups = new Map<number, SearchResultItem[]>();
-  for (const r of data.results) groups.set(r.groupId, [...(groups.get(r.groupId) ?? []), r]);
+  const minCents = parseReais(min);
+  const maxCents = parseReais(max);
+  const view = applyOfferView(data.results, { store: store || null, minCents, maxCents, order });
+  const storesInData = [...new Set(data.results.map((r) => r.store))];
 
   return (
     <>
@@ -112,8 +119,37 @@ export function SearchResults({ q }: { q: string }) {
         {data.status !== "done" && slow && <span className="chip fail">A busca está demorando mais que o normal.</span>}
       </div>
       {data.results.length === 0 && data.status === "done" && <p>Nenhuma oferta encontrada.</p>}
+      {data.results.length > 0 && (
+        <div className="filters" role="group" aria-label="Filtros e ordenação">
+          <label>Loja
+            <select value={store} onChange={(e) => setStore(e.target.value)}>
+              <option value="">Todas as lojas</option>
+              {storesInData.map((id) => <option key={id} value={id}>{STORES[id].name}</option>)}
+            </select>
+          </label>
+          <label>Preço mínimo (R$)
+            <input inputMode="decimal" value={min} placeholder="0" onChange={(e) => setMin(e.target.value)} />
+          </label>
+          <label>Preço máximo (R$)
+            <input inputMode="decimal" value={max} placeholder="sem limite" onChange={(e) => setMax(e.target.value)} />
+          </label>
+          <label>Ordenar por
+            <select value={order} onChange={(e) => setOrder(e.target.value as OfferOrder)}>
+              <option value="relevancia">Relevância</option>
+              <option value="menor-preco">Menor preço</option>
+              <option value="maior-desconto">Maior desconto</option>
+            </select>
+          </label>
+        </div>
+      )}
+      {data.results.length > 0 && (
+        <p className="muted" data-testid="offer-count" aria-live="polite">
+          {view.offers} {view.offers === 1 ? "oferta" : "ofertas"} em {view.stores} {view.stores === 1 ? "loja" : "lojas"}
+        </p>
+      )}
+      {data.results.length > 0 && view.offers === 0 && <p>Nenhuma oferta com esses filtros.</p>}
       <div className="list">
-        {[...groups.values()].map((items) =>
+        {view.groups.map((items) =>
           items.length === 1 ? (
             <Offer key={items[0].productId} r={items[0]} />
           ) : (
