@@ -3,7 +3,7 @@ import { createSearchQueue, redisConnection, type SearchJob } from "@buskativa/q
 import type { Queue } from "bullmq";
 import { createRateLimiter } from "./rate-limit";
 
-const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter> };
+const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter>; __voteLimiter?: ReturnType<typeof createRateLimiter> };
 
 export function getDb(): Db {
   g.__db ??= createDb(process.env.DATABASE_URL!).db;

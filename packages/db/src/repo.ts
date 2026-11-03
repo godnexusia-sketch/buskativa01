@@ -278,14 +278,14 @@ export async function listActiveCoupons(db: Db, store: StoreId | undefined, now:
 /**
  * One vote per voter per coupon; repeating the same vote is a no-op and a different
  * vote moves the counter. The coupon row is locked so counters stay consistent.
- * Returns the new counters, or null when the coupon does not exist or is inactive.
+ * Returns the updated coupon, or null when the coupon does not exist or is inactive.
  */
 export async function voteCoupon(
   db: Db,
   couponId: number,
   voterHash: string,
   worked: boolean,
-): Promise<{ worked: number; failed: number } | null> {
+): Promise<CouponRow | null> {
   return db.transaction(async (tx) => {
     const [coupon] = await tx.select().from(coupons).where(eq(coupons.id, couponId)).for("update");
     if (!coupon || !coupon.active) return null;
@@ -293,7 +293,7 @@ export async function voteCoupon(
       .select()
       .from(couponVotes)
       .where(and(eq(couponVotes.couponId, couponId), eq(couponVotes.voterHash, voterHash)));
-    if (prev?.worked === worked) return { worked: coupon.worked, failed: coupon.failed };
+    if (prev?.worked === worked) return coupon;
     if (prev) {
       await tx.update(couponVotes).set({ worked, at: new Date() }).where(eq(couponVotes.id, prev.id));
     } else {
@@ -303,8 +303,8 @@ export async function voteCoupon(
       worked: coupon.worked + (worked ? 1 : prev ? -1 : 0),
       failed: coupon.failed + (worked ? (prev ? -1 : 0) : 1),
     };
-    await tx.update(coupons).set(next).where(eq(coupons.id, couponId));
-    return next;
+    const [updated] = await tx.update(coupons).set(next).where(eq(coupons.id, couponId)).returning();
+    return updated;
   });
 }
 
