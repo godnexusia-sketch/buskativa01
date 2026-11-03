@@ -7,7 +7,8 @@ import { AdSlot } from "./ad-slot";
 import { CategoryNav } from "./category-nav";
 import { discountPercent } from "@buskativa/core/discount";
 import { Carousel } from "./carousel";
-import { ProductCard } from "./product-card";
+import { DepthShowcase } from "./depth-showcase";
+import { ProductCard, storeLabel } from "./product-card";
 import { SearchIcon } from "./icons";
 import { CountTo, StaggerGrid } from "./motion";
 import { Ticker, type TickerItem } from "./ticker";
@@ -62,6 +63,18 @@ export default async function Home() {
       </section>
 
       <Ticker items={ticker} />
+
+      <DepthShowcase
+        items={home.deals.slice(0, 8).map((p) => ({
+          productId: p.productId,
+          title: p.title,
+          imageUrl: p.imageUrl,
+          store: storeLabel(p.store, p.sellerName),
+          priceCents: p.priceCents,
+          originalPriceCents: p.originalPriceCents,
+          pct: discountPercent(p.priceCents / 100, p.originalPriceCents == null ? null : p.originalPriceCents / 100),
+        }))}
+      />
 
       <CategoryNav counts={home.counts} />
 

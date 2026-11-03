@@ -394,3 +394,32 @@ button.linklike:hover { text-decoration: underline; filter: none; }
   .ticker-track > [aria-hidden="true"] { display: none; }
   .ticker-toggle { display: none; }
 }
+
+/* ---------- vitrine em profundidade (home) ---------- */
+.depth { display: grid; gap: 14px; margin: 22px 0 6px; }
+@media (min-width: 860px) { .depth { grid-template-columns: minmax(0, 1fr) 340px; align-items: stretch; gap: 20px; } }
+.depth-stage { position: relative; height: clamp(260px, 62vw, 430px); overflow: hidden; border-radius: var(--r-card); touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: grab;
+  background: linear-gradient(transparent 62%, color-mix(in srgb, var(--surface) 70%, transparent) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 10%, var(--surface)) 0%, var(--surface) 55%, color-mix(in srgb, var(--tag) 22%, var(--surface)) 100%);
+  border: 1px solid var(--line); }
+.depth-stage.dragging { cursor: grabbing; }
+.depth-item { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, filter; display: block; mix-blend-mode: multiply; }
+.depth-item img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.depth-item::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: -2%; height: 4%; border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--shade), 0.22), transparent); }
+.depth-item:focus-visible { outline: 3px solid var(--brand); outline-offset: 6px; border-radius: 12px; }
+.depth-count { position: absolute; left: 16px; bottom: 12px; z-index: 200; display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 38px; color: var(--ink); pointer-events: none; }
+.depth-count > span:last-child { font-size: 16px; color: var(--muted); font-weight: 700; }
+.depth-win { height: 38px; overflow: hidden; display: block; }
+.depth-roll { display: block; will-change: transform; }
+.depth-roll b { display: block; height: 38px; }
+.depth-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 8px 24px rgba(var(--shade), 0.06); }
+.depth-title { font-size: clamp(18px, 2.4vw, 22px); line-height: 1.25; margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; min-height: 3.75em; }
+.depth-price { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.depth-price s { color: var(--muted); font-size: 14px; width: 100%; }
+.depth-price .price { position: relative; font-size: 30px; background: var(--tag); color: var(--tag-ink); padding: 4px 14px 4px 24px; border-radius: 8px 18px 18px 8px; }
+.depth-price .price::before { content: ""; position: absolute; left: 9px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--surface); }
+.depth-actions { display: flex; gap: 8px; margin-top: auto; }
+.depth-actions .btn { flex: 1; }
+.depth-nav { display: flex; align-items: center; gap: 8px; }
+.depth-nav .car-btn { position: static; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 859px) { .depth-panel { padding: 14px; } .depth-title { min-height: 0; -webkit-line-clamp: 2; } }
