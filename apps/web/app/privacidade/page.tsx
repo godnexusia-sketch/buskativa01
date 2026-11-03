@@ -62,11 +62,22 @@ export default function PrivacidadePage() {
       </ul>
 
       <h2>Bases legais e finalidades</h2>
-      <p>
-        Tratamos esses dados para operar e proteger o serviço (legítimo interesse), medir o uso do site e exibir
-        anúncios (consentimento, quando você aceita os cookies do Google) e manter a confiabilidade das informações de
-        cupons (legítimo interesse).
-      </p>
+      <ul>
+        <li>
+          Operar e proteger o serviço, incluindo o limite de uso e a prevenção de abuso pelo endereço IP: legítimo
+          interesse.
+        </li>
+        <li>
+          Carregar os scripts do Google antes da sua escolha, com todos os sinais de consentimento negados: legítimo
+          interesse. Esse contato técnico expõe ao Google dados como o endereço IP e o navegador, mas não grava cookies
+          nem personaliza anúncios.
+        </li>
+        <li>
+          Cookies de medição de uso e anúncios personalizados: consentimento, quando você aceita os cookies do Google
+          (pode ser retirado a qualquer momento em &quot;Preferências de cookies&quot;, no rodapé).
+        </li>
+        <li>Manter a confiabilidade das informações de cupons: legítimo interesse.</li>
+      </ul>
 
       <h2>Compartilhamento</h2>
       <p>
@@ -83,7 +94,7 @@ export default function PrivacidadePage() {
       <h2>Por quanto tempo guardamos</h2>
       <ul>
         <li>Registros de cliques em links de afiliado: 12 meses.</li>
-        <li>Votos de cupom (IP pseudonimizado): enquanto o cupom existir e por mais 30 dias.</li>
+        <li>Votos de cupom (IP pseudonimizado): enquanto o cupom estiver ativo e válido e por mais 30 dias depois de desativado ou vencido.</li>
         <li>Termos pesquisados: mantidos como histórico dos produtos.</li>
         <li>Dados do limite de uso por IP: apenas em memória, por poucos minutos.</li>
         <li>Escolha de cookies: no seu navegador, até você apagá-la.</li>
