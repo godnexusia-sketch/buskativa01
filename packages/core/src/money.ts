@@ -16,12 +16,46 @@ export function parseBRL(text: string): number | null {
   return m ? toNumber(m[1]) : null;
 }
 
-/** Every BRL amount in the text, in order; amounts without "R$" only when none has it. */
-export function parseAllBRL(text: string): number[] {
+interface Amount {
+  value: number;
+  before: string;
+  after: string;
+}
+
+function amounts(text: string): Amount[] {
   const collect = (src: string) =>
-    [...text.matchAll(new RegExp(src, "g"))].map((m) => toNumber(m[1])).filter((v): v is number => v !== null);
+    [...text.matchAll(new RegExp(src, "g"))].flatMap((m): Amount[] => {
+      const value = toNumber(m[1]);
+      if (value === null) return [];
+      const start = m.index ?? 0;
+      const end = start + m[0].length;
+      return [{ value, before: text.slice(Math.max(0, start - 25), start), after: text.slice(end, end + 20) }];
+    });
   const withSymbol = collect(WITH_SYMBOL_SRC);
   return withSymbol.length > 0 ? withSymbol : collect(WITHOUT_SYMBOL_SRC);
+}
+
+/** Every BRL amount in the text, in order; amounts without "R$" only when none has it. */
+export function parseAllBRL(text: string): number[] {
+  return amounts(text).map((a) => a.value);
+}
+
+const INSTALLMENT_BEFORE = /\d+\s*x\s*(de\s*)?$/i;
+const EXTRA_BEFORE = /(frete|entrega|cashback|economize|desconto)\s*:?\s*(de\s*)?$/i;
+const EXTRA_AFTER = /^\s*(de\s+)?(cashback|desconto|off)\b/i;
+
+/**
+ * Current price shown in a product card: the lowest amount that is not an installment
+ * ("10x de R$ 27,99") or a shipping/cashback/discount figure. Falls back to the first amount
+ * when every amount was excluded.
+ */
+export function pickCardPrice(text: string): number | null {
+  const all = amounts(text);
+  if (all.length === 0) return null;
+  const candidates = all.filter(
+    (a) => !INSTALLMENT_BEFORE.test(a.before) && !EXTRA_BEFORE.test(a.before) && !EXTRA_AFTER.test(a.after),
+  );
+  return candidates.length > 0 ? Math.min(...candidates.map((a) => a.value)) : all[0].value;
 }
 
 export function toCents(reais: number): number {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAllBRL, parseBRL, toCents } from "../src/money";
+import { parseAllBRL, parseBRL, pickCardPrice, toCents } from "../src/money";
 
 describe("parseBRL", () => {
   it.each([
@@ -34,6 +34,31 @@ describe("parseAllBRL", () => {
 
   it("retorna lista vazia sem preço", () => {
     expect(parseAllBRL("sem preço")).toEqual([]);
+  });
+});
+
+describe("pickCardPrice", () => {
+  it.each([
+    ["de R$ 399,00 R$ 279,90 no Pix", 279.9],
+    ["R$ 279,90 no Pix ou 10x de R$ 27,99 sem juros", 279.9],
+    ["R$ 279,90 em 10x R$ 27,99", 279.9],
+    ["R$ 279,90 Frete R$ 9,90", 279.9],
+    ["R$ 279,90 entrega: R$ 15,00", 279.9],
+    ["R$ 279,90 ganhe R$ 5,00 de cashback", 279.9],
+    ["economize R$ 20,00 por R$ 279,90", 279.9],
+    ["R$ 279,90 R$ 30,00 de desconto", 279.9],
+    ["R$ 279,90 R$ 50 OFF", 279.9],
+    ["por apenas 89,90 em 3x de 29,97", 89.9],
+  ])("%s -> %d", (text, expected) => {
+    expect(pickCardPrice(text)).toBeCloseTo(expected);
+  });
+
+  it("se todos os valores forem excluídos, usa o primeiro", () => {
+    expect(pickCardPrice("10x de R$ 27,99 Frete R$ 9,90")).toBeCloseTo(27.99);
+  });
+
+  it("retorna null sem preço", () => {
+    expect(pickCardPrice("sem preço")).toBeNull();
   });
 });
 
