@@ -8,6 +8,13 @@
       "when": 1793583079748,
       "tag": "0000_workable_lilith",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793671427168,
+      "tag": "0001_rapid_landau",
+      "breakpoints": true
     }
   ]
 }

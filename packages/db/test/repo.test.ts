@@ -1,4 +1,5 @@
 import { normalizeQuery, type Offer } from "@buskativa/core";
+import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
@@ -99,4 +100,15 @@ describe("repo", () => {
     expect(drops[0].prevAvgCents).toBe(10000);
     expect(drops[0].drop).toBeCloseTo(0.25);
   });
+});
+
+describe("migrações", () => {
+  it("indexa price_observations por observed_at (usado por topDrops)", async () => {
+    const res = await db.execute(
+      sql`select indexdef from pg_indexes where tablename = 'price_observations' and indexname = 'price_obs_time'`,
+    );
+    const rows = (res as unknown as { rows: { indexdef: string }[] }).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].indexdef).toMatch(/\(observed_at\)/);
+  }, 90000);
 });

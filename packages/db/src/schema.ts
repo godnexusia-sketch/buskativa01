@@ -40,7 +40,11 @@ export const priceObservations = pgTable(
     shippingCents: integer("shipping_cents"),
     observedAt: tz("observed_at").notNull().defaultNow(),
   },
-  (t) => [index("price_obs_product_time").on(t.productId, t.observedAt)],
+  (t) => [
+    index("price_obs_product_time").on(t.productId, t.observedAt),
+    // topDrops filters recent observations across all products by time
+    index("price_obs_time").on(t.observedAt),
+  ],
 );
 
 export const searchRuns = pgTable("search_runs", {
