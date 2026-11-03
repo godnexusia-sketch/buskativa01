@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBRL, toCents } from "../src/money";
+import { parseAllBRL, parseBRL, toCents } from "../src/money";
 
 describe("parseBRL", () => {
   it.each([
@@ -8,12 +8,32 @@ describe("parseBRL", () => {
     ["R$ 1.299", 1299],
     ["por apenas 89,90 à vista", 89.9],
     ["de R$ 200,00 por R$ 150,00", 200],
+    ["R$ 1234,56", 1234.56],
+    ["R$1234", 1234],
+    ["R$ 99,90", 99.9],
+    ["R$ 12.999", 12999],
+    ["R$ 1.299,00", 1299],
   ])("%s -> %d", (text, expected) => {
     expect(parseBRL(text)).toBeCloseTo(expected);
   });
 
   it("retorna null sem preço", () => {
     expect(parseBRL("sem preço")).toBeNull();
+  });
+});
+
+describe("parseAllBRL", () => {
+  it("retorna todos os preços com símbolo, na ordem", () => {
+    expect(parseAllBRL("de R$ 399,00 por R$ 279,90 no Pix")).toEqual([399, 279.9]);
+    expect(parseAllBRL("R$ 1234,56 ou 10x de R$1.299")).toEqual([1234.56, 1299]);
+  });
+
+  it("cai para valores sem símbolo quando não há R$", () => {
+    expect(parseAllBRL("de 399,00 por 279,90")).toEqual([399, 279.9]);
+  });
+
+  it("retorna lista vazia sem preço", () => {
+    expect(parseAllBRL("sem preço")).toEqual([]);
   });
 });
 
