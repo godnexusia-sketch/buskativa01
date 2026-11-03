@@ -312,9 +312,3 @@ export async function deactivateCoupon(db: Db, id: number): Promise<boolean> {
   const res = await db.update(coupons).set({ active: false }).where(eq(coupons.id, id)).returning({ id: coupons.id });
   return res.length > 0;
 }
-
-export async function countActiveCouponsByStore(db: Db, now: Date): Promise<Partial<Record<StoreId, number>>> {
-  const out: Partial<Record<StoreId, number>> = {};
-  for (const c of await listActiveCoupons(db, undefined, now)) out[c.store] = (out[c.store] ?? 0) + 1;
-  return out;
-}

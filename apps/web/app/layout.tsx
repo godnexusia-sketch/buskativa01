@@ -17,6 +17,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <input name="q" placeholder="Busque um produto: ex. iPhone 15 128GB preto" required minLength={2} maxLength={120} />
             <button type="submit">Buscar</button>
           </form>
+          <nav className="main" aria-label="Principal">
+            <a href="/cupons">Cupons</a>
+          </nav>
         </header>
         <main>{children}</main>
       </body>

@@ -2,6 +2,8 @@ import { computeStats, similarity } from "@buskativa/core";
 import { STORES } from "@buskativa/core/stores";
 import { getLatestOriginalPriceCents, getPriceHistory, getProduct, latestRunIdForProduct } from "@buskativa/db";
 import { notFound } from "next/navigation";
+import { listCouponsPublic, type PublicCoupon } from "../../../lib/coupon-service";
+import { CouponCard } from "../../cupons/coupon-card";
 import { CONFIDENCE_LABEL, formatBRL, formatDateTime, hourBlockLabel, WEEKDAYS } from "../../../lib/format";
 import { searchResults } from "../../../lib/search-service";
 import { getDb } from "../../../lib/server";
@@ -26,6 +28,8 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   const others = (run?.results ?? []).filter(
     (r) => r.productId !== id && r.store !== product.store && similarity(r.title, product.title) >= 0.6,
   );
+
+  const coupons = ((await listCouponsPublic(db, product.store, new Date())).body as { coupons: PublicCoupon[] }).coupons;
 
   return (
     <>
@@ -72,6 +76,15 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             </span>
           </div>
         </div>
+      )}
+
+      {coupons.length > 0 && (
+        <>
+          <h2>Cupons para {STORES[product.store].name}</h2>
+          <div className="list">
+            {coupons.map((c) => <CouponCard key={c.id} coupon={c} showStore={false} />)}
+          </div>
+        </>
       )}
 
       <h2>Histórico de preço</h2>

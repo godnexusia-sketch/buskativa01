@@ -20,6 +20,16 @@ export function allowSearch(ip: string): boolean {
   return g.__limiter(ip);
 }
 
+export function allowVote(ip: string): boolean {
+  g.__voteLimiter ??= createRateLimiter(10, 60e3);
+  return g.__voteLimiter(ip);
+}
+
+/** Salt for hashing voter IPs; without it votes are refused (503) instead of storing weak hashes. */
+export function voteSalt(): string | null {
+  return process.env.VOTE_SALT || null;
+}
+
 /**
  * Client IP for rate limiting. Headers set by a CDN/proxy win; otherwise the RIGHT-most
  * x-forwarded-for hop (the one our proxy appended) since the left-most is client-controlled.

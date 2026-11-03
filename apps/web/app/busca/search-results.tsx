@@ -30,6 +30,19 @@ export function SearchResults({ q }: { q: string }) {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
+  const [couponCounts, setCouponCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // coupon chips are a nicety: any failure just hides them
+    fetch("/api/cupons")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b: { coupons?: { store: string }[] } | null) => {
+        const counts: Record<string, number> = {};
+        for (const c of b?.coupons ?? []) counts[c.store] = (counts[c.store] ?? 0) + 1;
+        setCouponCounts(counts);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let stopped = false;
@@ -88,6 +101,13 @@ export function SearchResults({ q }: { q: string }) {
             {STORES[id as keyof typeof STORES].name}: {s?.ok ? `${s.count} ofertas` : "indisponível agora"}
           </span>
         ))}
+        {Object.keys(data.storeStatus)
+          .filter((id) => couponCounts[id] > 0)
+          .map((id) => (
+            <a key={`c-${id}`} className="chip sel" href={`/cupons?loja=${id}`}>
+              {couponCounts[id]} {couponCounts[id] === 1 ? "cupom" : "cupons"} {STORES[id as keyof typeof STORES].name}
+            </a>
+          ))}
         {data.status !== "done" && !slow && <span className="chip">buscando…</span>}
         {data.status !== "done" && slow && <span className="chip fail">A busca está demorando mais que o normal.</span>}
       </div>
