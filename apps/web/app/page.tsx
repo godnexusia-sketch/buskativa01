@@ -67,25 +67,35 @@ export default async function Home() {
               <a key={s} href={`/busca?q=${encodeURIComponent(s)}`}>{s}</a>
             ))}
           </div>
+          <details className="store-filter">
+            <summary>
+              Filtrar por loja <span className="count">{STORE_IDS.length}</span>
+            </summary>
+            <div className="store-filter-menu">
+              {STORE_IDS.map((id) => (
+                <a key={id} href={`/ofertas?loja=${id}`}>{STORES[id].name}</a>
+              ))}
+            </div>
+          </details>
         </div>
-        <ul className="hero-stores" aria-label="Lojas comparadas">
-          {STORE_IDS.map((id, n) => <li key={id} style={{ "--n": n } as React.CSSProperties}>{STORES[id].name}</li>)}
-        </ul>
+        <div className="hero-show">
+          <DepthShowcase
+            items={home.deals.slice(0, 8).map((p) => ({
+              productId: p.productId,
+              title: p.title,
+              imageUrl: p.imageUrl,
+              store: storeLabel(p.store, p.sellerName),
+              priceCents: p.priceCents,
+              originalPriceCents: p.originalPriceCents,
+              pct: discountPercent(p.priceCents / 100, p.originalPriceCents == null ? null : p.originalPriceCents / 100),
+            }))}
+          />
+        </div>
       </section>
 
       <Ticker items={ticker} />
 
-      <DepthShowcase
-        items={home.deals.slice(0, 8).map((p) => ({
-          productId: p.productId,
-          title: p.title,
-          imageUrl: p.imageUrl,
-          store: storeLabel(p.store, p.sellerName),
-          priceCents: p.priceCents,
-          originalPriceCents: p.originalPriceCents,
-          pct: discountPercent(p.priceCents / 100, p.originalPriceCents == null ? null : p.originalPriceCents / 100),
-        }))}
-      />
+
 
       <CategoryNav counts={home.counts} />
 

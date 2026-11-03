@@ -28,7 +28,13 @@ export function PriceChart({ points, avg }: { points: Point[]; avg?: number }) {
             <CartesianGrid vertical={false} stroke="var(--line)" />
             <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} tickFormatter={day} tick={{ fontSize: 12, fill: "var(--muted)" }} stroke="var(--line)" />
             <YAxis width={78} tickFormatter={brl} domain={["auto", "auto"]} tick={{ fontSize: 12, fill: "var(--muted)" }} stroke="var(--line)" />
-            <Tooltip labelFormatter={(t) => formatDateTime(new Date(Number(t)))} formatter={(v) => [brl(v), "Preço"]} />
+            <Tooltip
+              labelFormatter={(t) => formatDateTime(new Date(Number(t)))}
+              formatter={(v) => [brl(v), "Preço"]}
+              contentStyle={{ background: "#ffffff", border: "1px solid #e4def8", borderRadius: 12, boxShadow: "0 8px 24px rgba(23,15,61,.18)" }}
+              labelStyle={{ color: "#170f3d", fontWeight: 700 }}
+              itemStyle={{ color: "#170f3d" }}
+            />
             {avg !== undefined && <ReferenceLine y={avg} stroke="var(--muted)" strokeDasharray="4 4" />}
             <Line type="stepAfter" dataKey="price" stroke="var(--ink)" strokeWidth={2} dot={false} isAnimationActive={!reduced} animationDuration={1100} animationEasing="ease-out" />
             {hi.price !== lo.price && <ReferenceDot x={hi.t} y={hi.price} r={5} fill="var(--drop)" stroke="var(--surface)" strokeWidth={2} />}

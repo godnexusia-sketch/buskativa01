@@ -88,8 +88,7 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 .hero-suggest a:hover { background: rgba(255, 255, 255, 0.08); }
 .hero-stores { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--hero-muted); font-family: var(--display); font-weight: 600; font-size: 15px; }
 @media (min-width: 860px) {
-  .hero { margin: -12px calc(50% - 50vw) 0; padding: 48px calc(50vw - 604px) 52px; grid-template-columns: 1fr auto; align-items: end; }
-  .hero-stores { flex-direction: column; text-align: right; gap: 4px; }
+  .hero { margin: -12px calc(50% - 50vw) 0; padding: 40px calc(50vw - 604px) 44px; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); align-items: center; gap: 40px; }
 }
 @media (min-width: 860px) and (max-width: 1240px) { .hero { padding-left: 32px; padding-right: 32px; } }
 
@@ -435,3 +434,31 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 .radar-rank { position: absolute; z-index: 3; top: 10px; right: 10px; background: var(--ink); color: var(--surface); font-family: var(--display); font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 999px; }
 .radar-new { position: absolute; z-index: 3; top: 40px; right: 10px; background: var(--good); color: #fff; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
 .radar-item.is-new .pcard { box-shadow: 0 0 0 2px var(--good), 0 12px 28px rgba(var(--shade), 0.14); }
+
+/* hero: the showcase fills the right column; inside it, the panel turns into a compact bar under the stage */
+.hero-show { min-width: 0; }
+.hero .depth { margin: 0; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.hero .depth-stage { height: clamp(250px, 64vw, 360px); }
+.hero .depth-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "store nav" "title title" "price price" "actions actions"; gap: 6px 12px; padding: 14px 16px; background: color-mix(in srgb, var(--surface) 92%, transparent); }
+.hero .depth-panel .pcard-store { grid-area: store; }
+.hero .depth-title { grid-area: title; font-size: 17px; min-height: 0; -webkit-line-clamp: 2; color: var(--ink); }
+.hero .depth-price { grid-area: price; }
+.hero .depth-price s { width: auto; }
+.hero .depth-price .price { font-size: 24px; }
+.hero .depth-actions { grid-area: actions; margin-top: 4px; }
+.hero .depth-nav { grid-area: nav; }
+.hero .depth-nav .muted { display: none; }
+.hero .depth-nav .car-btn { width: 34px; height: 34px; }
+@media (min-width: 640px) { .hero .depth-panel { grid-template-areas: "store nav" "title title" "price actions"; align-items: center; } .hero .depth-actions { margin-top: 0; } }
+
+/* stores: hidden behind a filter button until someone wants to pick one */
+.store-filter { position: relative; margin-top: 14px; width: max-content; max-width: 100%; }
+.store-filter > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; padding: 9px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.22); color: var(--hero-ink); }
+.store-filter > summary::-webkit-details-marker { display: none; }
+.store-filter > summary::after { content: ""; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 0.2s var(--ease-out); }
+.store-filter[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
+.store-filter > summary:hover { background: rgba(255, 255, 255, 0.08); }
+.store-filter .count { background: rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 0 8px; font-size: 12px; }
+.store-filter-menu { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; min-width: 240px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px; border-radius: 16px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(var(--shade), 0.28); animation: rise 0.25s var(--ease-out) both; }
+.store-filter-menu a { text-decoration: none; font-size: 14px; font-weight: 600; padding: 9px 10px; border-radius: 10px; }
+.store-filter-menu a:hover { background: var(--brand-soft); color: var(--brand); }
