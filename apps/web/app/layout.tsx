@@ -6,6 +6,7 @@ import { Analytics } from "./analytics";
 import { CookieBanner, CookieSettingsButton } from "./cookie-banner";
 import "./globals.css";
 import { Logo, SearchIcon } from "./icons";
+import { MotionProvider } from "./motion";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display", display: "swap" });
 const body = Figtree({ subsets: ["latin"], variable: "--font-body", display: "swap" });
@@ -35,8 +36,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={`${display.variable} ${body.variable}`}>
       <body>
-        {/* marks that scripts run, so entrance animations may start hidden (without JS everything stays visible) */}
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
         <header className="top">
           <div className="top-inner">
             <a className="logo" href="/" aria-label="BUSKATIVA, página inicial">
@@ -54,7 +53,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </nav>
           </div>
         </header>
-        <main>{children}</main>
+        <MotionProvider>
+          <main>{children}</main>
+        </MotionProvider>
         <footer className="site-footer">
           <div className="footer-brand">
             <Logo />

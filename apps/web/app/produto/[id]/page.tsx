@@ -15,6 +15,7 @@ import { getDb } from "../../../lib/server";
 import { PriceBadges } from "../../price-badges";
 import { PriceChart } from "./price-chart";
 import { storeLabel } from "../../product-card";
+import { CountTo } from "../../motion";
 import { buyVerdict, highestPoint } from "../../../lib/verdict";
 import { CATEGORIES } from "@buskativa/core/categories";
 
@@ -95,14 +96,16 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
 
       <section className="pdp">
         <div className="pdp-media">
-          {product.imageUrl ? <img src={product.imageUrl} alt={product.title} /> : <span className="pcard-noimg" />}
+          {product.imageUrl ? <img src={product.imageUrl} alt={product.title} width={600} height={600} /> : <span className="pcard-noimg" />}
         </div>
         <div className="pdp-info">
           <span className="pcard-store">{storeLabel(product.store, product.sellerName)}</span>
           <h1>{product.title}</h1>
           {current !== null && (
             <div className="pdp-price">
-              <span className="price">{formatBRL(current)}</span>
+              <span className="price">
+                <CountTo to={current} from={originalCents !== null && originalCents > current ? originalCents : current} format="brl" duration={1.2} />
+              </span>
               <PriceBadges priceCents={current} originalPriceCents={originalCents} pagamento={pagamento} />
               {belowAvg && (
                 <div className="badges"><span className="badge below">Abaixo da média de 30 dias</span></div>

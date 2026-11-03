@@ -8,7 +8,8 @@ import { CategoryNav } from "./category-nav";
 import { discountPercent } from "@buskativa/core/discount";
 import { Carousel } from "./carousel";
 import { ProductCard } from "./product-card";
-import { Reveal } from "./reveal";
+import { SearchIcon } from "./icons";
+import { CountTo, StaggerGrid } from "./motion";
 import { Ticker, type TickerItem } from "./ticker";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,19 @@ export default async function Home() {
       <section className="hero">
         <div className="hero-copy">
           <h1>O menor preço de cada produto, lado a lado.</h1>
+          <form className="hero-search" action="/busca" role="search">
+            <SearchIcon />
+            <input name="q" aria-label="Buscar produto" placeholder="Busque um produto e compare as lojas" required minLength={2} maxLength={120} />
+            <button type="submit">Comparar</button>
+          </form>
           <p>
-            {empty
-              ? "Comparamos lojas e guardamos o histórico de preço de cada produto."
-              : `${home.total.toLocaleString("pt-BR")} produtos acompanhados em ${STORE_IDS.length} lojas, com histórico de preço e cupons.`}
+            {empty ? (
+              "Comparamos lojas e guardamos o histórico de preço de cada produto."
+            ) : (
+              <>
+                <strong className="hero-count"><CountTo to={home.total} /></strong> produtos acompanhados, com histórico de preço e cupons.
+              </>
+            )}
           </p>
           <div className="hero-suggest" aria-label="Buscas populares">
             {SUGESTOES.map((s) => (
@@ -65,9 +75,9 @@ export default async function Home() {
             <h2>Maiores descontos agora</h2>
             <a href="/ofertas?ordem=maior-desconto&desconto=1">Ver todos</a>
           </header>
-          <Reveal className="grid">
+          <StaggerGrid className="grid">
             {home.deals.map((p) => <ProductCard key={p.productId} p={p} />)}
-          </Reveal>
+          </StaggerGrid>
         </section>
       )}
 
@@ -108,6 +118,24 @@ export default async function Home() {
           </Carousel>
         </section>
       ))}
+
+      <section className="trust" aria-labelledby="como-funciona">
+        <h2 id="como-funciona">Como o BUSKATIVA funciona</h2>
+        <ol>
+          <li>
+            <strong>Comparamos as lojas</strong>
+            <span>Buscamos o mesmo produto em várias lojas e mostramos o preço total, com frete quando a loja informa.</span>
+          </li>
+          <li>
+            <strong>Guardamos o histórico</strong>
+            <span>Cada preço visto entra no gráfico, para você saber se o desconto é real ou se o preço só voltou ao normal.</span>
+          </li>
+          <li>
+            <strong>Você compra na loja</strong>
+            <span>O pagamento é feito no site da loja. Alguns links são de afiliado: podemos ganhar uma comissão, sem custo para você.</span>
+          </li>
+        </ol>
+      </section>
     </>
   );
 }

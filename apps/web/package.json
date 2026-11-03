@@ -15,6 +15,7 @@
     "@buskativa/db": "*",
     "@buskativa/queue": "*",
     "bullmq": "^6.5.4",
+    "motion": "14.2.0",
     "next": "^16.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

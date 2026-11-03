@@ -8,7 +8,7 @@ import { OFERTAS_PAGE_SIZE, ofertasHref, parseOfertasParams, type OfertasParams 
 import { getDb } from "../../lib/server";
 import { CategoryNav } from "../category-nav";
 import { ProductCard } from "../product-card";
-import { Reveal } from "../reveal";
+import { StaggerGrid } from "../motion";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,13 @@ export async function generateMetadata({ searchParams }: { searchParams: Search 
   const p = parseOfertasParams(await searchParams);
   return { title: p.categoria ? `${CATEGORIES[p.categoria].name}: menores preços` : "Todas as ofertas" };
 }
+
+const QUICK_RANGES = [
+  { label: "Até R$ 100", min: undefined, max: 10000 },
+  { label: "R$ 100 a 500", min: 10000, max: 50000 },
+  { label: "R$ 500 a 2.000", min: 50000, max: 200000 },
+  { label: "Acima de R$ 2.000", min: 200000, max: undefined },
+] as const;
 
 const ORDEM_LABEL = { "menor-preco": "Menor preço", "maior-desconto": "Maior desconto", recentes: "Atualizados recentemente" } as const;
 
@@ -51,6 +58,18 @@ export default async function OfertasPage({ searchParams }: { searchParams: Sear
           {total} {total === 1 ? "produto" : "produtos"}, com o último preço de cada um. O preço mostrado já soma o frete quando a loja informa.
         </p>
       </div>
+
+      <nav className="quick" aria-label="Filtros rápidos">
+        <a className={`chip ${p.desconto ? "sel" : ""}`} href={link({ desconto: !p.desconto })} aria-pressed={p.desconto}>Só com desconto</a>
+        {QUICK_RANGES.map((r) => {
+          const on = p.minCents === r.min && p.maxCents === r.max;
+          return (
+            <a key={r.label} className={`chip ${on ? "sel" : ""}`} href={link(on ? { minCents: undefined, maxCents: undefined } : { minCents: r.min, maxCents: r.max })} aria-pressed={on}>
+              {r.label}
+            </a>
+          );
+        })}
+      </nav>
 
       <div className="catalog">
         <div className="filters-panel">
@@ -99,9 +118,9 @@ export default async function OfertasPage({ searchParams }: { searchParams: Sear
             </div>
           ) : (
             <>
-              <Reveal className="grid">
+              <StaggerGrid className="grid">
                 {items.map((i) => <ProductCard key={i.productId} p={i} />)}
-              </Reveal>
+              </StaggerGrid>
               <nav className="pager" aria-label="Paginação">
                 {p.pagina > 1 ? <a className="btn ghost" rel="prev" href={link({ pagina: p.pagina - 1 })}>Anterior</a> : <span />}
                 <span className="muted">Página {p.pagina} de {pages}</span>

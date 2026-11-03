@@ -2,6 +2,7 @@ import { discountPercent } from "@buskativa/core/discount";
 import { STORES } from "@buskativa/core/stores";
 import type { StoreId } from "@buskativa/core";
 import { formatBRL } from "../lib/format";
+import { Pressable } from "./motion";
 import { PAGAMENTO_LABEL } from "./price-badges";
 
 export interface CardProduct {
@@ -28,9 +29,10 @@ export function ProductCard({ p }: { p: CardProduct }) {
   const pct = discountPercent(p.priceCents / 100, p.originalPriceCents == null ? null : p.originalPriceCents / 100);
   const total = p.priceCents + (p.shippingCents ?? 0);
   return (
+    <Pressable>
     <article className="pcard" data-testid="offer">
       <a className="pcard-media" href={`/produto/${p.productId}`} tabIndex={-1} aria-hidden="true">
-        {p.imageUrl ? <img src={p.imageUrl} alt="" loading="lazy" /> : <span className="pcard-noimg" />}
+        {p.imageUrl ? <img src={p.imageUrl} alt="" loading="lazy" decoding="async" width={400} height={400} /> : <span className="pcard-noimg" />}
         {pct !== null && <span className="stamp">-{pct}%</span>}
       </a>
       <div className="pcard-body">
@@ -46,5 +48,6 @@ export function ProductCard({ p }: { p: CardProduct }) {
         <a className="btn btn-store" href={`/ir/${p.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
       </div>
     </article>
+    </Pressable>
   );
 }
