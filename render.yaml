@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./Dockerfile.web
     plan: starter
     region: oregon
-    healthCheckPath: /
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL # Supabase, session pooler
         sync: false
