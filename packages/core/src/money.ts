@@ -45,7 +45,7 @@ const INSTALLMENT_BEFORE = /\d+\s*x\s*(?:\p{L}+\s*){0,3}$/iu;
 const EXTRA_BEFORE =
   /(?:(?:frete|entrega)\s+gr[aá]tis\s+(?:acima de|a partir de)|(?:frete|entrega|cashback|economize|desconto|ganhe)\s*:?\s*(?:de\s*)?)\s*$/i;
 const EXTRA_AFTER =
-  /^\s*(?:(?:de\s+)?(?:cashback|desconto|off)\b|de\s+(?:frete|volta)\b|(?:por|ao)\s+m[eê]s\b|\/\s*m[eê]s\b|\/\s*un\b|\/\s*\d+\s*(?:kg|g|ml|l)\b)/iu;
+  /^\s*(?:(?:de\s+)?(?:cashback|desconto|off)\b|de\s+volta\b|volta\b|frete\b(?!\s*(?:gr[aá]tis|:?\s*(?:R\$|\d)))|de\s+frete\b|(?:por|ao)\s+m[eê]s\b|\/\s*m[eê]s\b|\/\s*un\b|\/\s*\d+\s*(?:kg|g|ml|l)\b)/iu;
 // "R$ 1.199 em 10x" is an installment total, unlike "R$ 279,90 em 10x R$ 27,99"
 const INSTALLMENT_TOTAL_AFTER =
   /^\s*em\s+(?:até\s+)?\d+\s*x(?!\s*(?:\p{L}+\s*){0,3}(?:R\$\s*)?\d)/iu;
@@ -69,10 +69,22 @@ export interface CardPrices {
 export function pickCardPrices(text: string): CardPrices | null {
   const all = amounts(text).filter((a) => a.value > 0);
   if (all.length === 0) return null;
-  const kept = all.filter(
-    (a) => !INSTALLMENT_BEFORE.test(a.before) && !EXTRA_BEFORE.test(a.before) && !EXTRA_AFTER.test(a.after) &&
+  const candidates = all.filter(
+    (a) =>
+      !INSTALLMENT_BEFORE.test(a.before) &&
+      !EXTRA_BEFORE.test(a.before) &&
+      !EXTRA_AFTER.test(a.after) &&
       !INSTALLMENT_TOTAL_AFTER.test(a.after),
   );
+  // "R$ 1.199 em 10x de R$ 119,90": A is the installment total when A is about N times the next amount.
+  // It is dropped only if a lower amount exists, so a lone "R$ 279,90 em 10x R$ 27,99" stays the price.
+  const isTotal = (a: Amount) => {
+    const n = a.after.match(/^\s*(?:em\s+)?(?:até\s+)?(\d+)\s*x\b/iu);
+    const next = all[all.indexOf(a) + 1];
+    return !!n && !!next && Math.abs(a.value - Number(n[1]) * next.value) <= Math.max(1, a.value * 0.02);
+  };
+  const others = candidates.filter((a) => !isTotal(a));
+  const kept = candidates.filter((a) => !isTotal(a) || !others.some((o) => o.value < a.value));
   if (kept.length === 0) return { price: all[0].value };
   const largest = Math.max(...kept.map((a) => a.value));
   const values = kept.map((a) => a.value).filter((v) => v >= largest * MIN_SHARE_OF_LARGEST);
@@ -93,9 +105,10 @@ export function pickCardPrice(text: string): number | null {
 /** Whether the text right after the price (about 30 characters) says it only applies in the app or via Pix. */
 export function detectPagamento(afterPrice: string): "app" | "pix" | undefined {
   const near = afterPrice.slice(0, 30);
-  if (/(?<!desconto\s)(?:(?:no|pelo) app|exclusivo (?:no|do) app)\b/i.test(near)) return "app";
-  if (/(?<!desconto\s)no pix\b/i.test(near)) return "pix";
-  return undefined;
+  const m = near.match(/(?:(?:no|pelo) app|exclusivo (?:no|do) app)\b|no pix\b/i);
+  // "5% de desconto no Pix" is an extra discount, not the price condition
+  if (!m || /desconto/i.test(near.slice(0, m.index))) return undefined;
+  return /pix/i.test(m[0]) ? "pix" : "app";
 }
 
 export function toCents(reais: number): number {

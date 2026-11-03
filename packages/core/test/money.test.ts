@@ -65,6 +65,11 @@ describe("pickCardPrice", () => {
     ["R$ 399,00 R$ 279,90 frete grátis", 279.9],
     ["de R$ 399,00 por R$ 279,90 Frete grátis", 279.9],
     ["R$ 1.099 à vista ou R$ 1.199 em 10x", 1099],
+    ["R$ 279,90 + R$ 49,90 frete", 279.9],
+    ["R$ 279,90 R$ 49,90 frete", 279.9],
+    ["R$ 279,90 R$ 50,00 volta", 279.9],
+    ["R$ 1.099 à vista ou R$ 1.199 em 10x de R$ 119,90 sem juros", 1099],
+    ["R$ 279,90 em 10x R$ 27,99", 279.9],
     ["R$ 1.299,00 R$ 1.099,00 à vista no Pix ou R$ 1.199,00 em até 10x de R$ 119,90 sem juros", 1099],
   ])("%s -> %d", (text, expected) => {
     expect(pickCardPrice(text)).toBeCloseTo(expected);
@@ -114,6 +119,12 @@ describe("pickCardPrices: original e pagamento", () => {
     expect(pickCardPrices("de R$ 399,00 por R$ 279,90 Frete grátis")).toEqual({ price: 279.9, originalPrice: 399 });
   });
 
+  it("total seguido da própria parcela não vira preço original", () => {
+    expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em 10x de R$ 119,90 sem juros")).toEqual({ price: 1099 });
+    expect(pickCardPrices("R$ 279,90 em 10x R$ 27,99")).toEqual({ price: 279.9 });
+    expect(pickCardPrices("R$ 399,00 R$ 279,90 em 10x R$ 27,99")).toEqual({ price: 279.9, originalPrice: 399 });
+  });
+
   it("total parcelado (em 10x) não conta como preço original", () => {
     expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em 10x")).toEqual({ price: 1099 });
     expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em até 12x")).toEqual({ price: 1099 });
@@ -123,6 +134,7 @@ describe("pickCardPrices: original e pagamento", () => {
     expect(pickCardPrices("R$ 279,90 no Pix")).toMatchObject({ price: 279.9, pagamento: "pix" });
     expect(pickCardPrices("R$ 250,00 no Pix ou R$ 279,90 no cartão")).toMatchObject({ price: 250, pagamento: "pix" });
     expect(pickCardPrices("R$ 279,90 5% de desconto no Pix")?.pagamento).toBeUndefined();
+    expect(pickCardPrices("R$ 279,90 desconto de 5% no Pix")?.pagamento).toBeUndefined();
     expect(pickCardPrices("R$ 279,90 baixe nosso app")?.pagamento).toBeUndefined();
     expect(pickCardPrices("R$ 279,90 em 10x de R$ 27,99. Compre no Pix de qualquer loja bem longe")?.pagamento).toBeUndefined();
   });
