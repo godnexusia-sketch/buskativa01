@@ -7,8 +7,8 @@ export async function POST(req: Request) {
   if (!allowSearch(clientIp(req))) {
     return NextResponse.json({ error: "Muitas buscas seguidas. Tente de novo em 1 minuto." }, { status: 429 });
   }
-  const body = (await req.json().catch(() => ({}))) as { q?: unknown };
-  const q = typeof body.q === "string" ? body.q.trim() : "";
+  const body = (await req.json().catch(() => null)) as { q?: unknown } | null;
+  const q = typeof body?.q === "string" ? body.q.trim() : "";
   if (q.length < 2 || q.length > 120) {
     return NextResponse.json({ error: "Digite entre 2 e 120 caracteres." }, { status: 400 });
   }
