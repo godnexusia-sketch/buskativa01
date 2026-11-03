@@ -1,0 +1,28 @@
+{
+  "name": "@buskativa/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit -p .",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@buskativa/core": "*",
+    "@buskativa/db": "*",
+    "@buskativa/queue": "*",
+    "bullmq": "^6.5.4",
+    "next": "^16.4.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}

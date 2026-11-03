@@ -6,3 +6,4 @@ dist
 test-results
 playwright-report
 packages/connectors/fixtures/live
+*.tsbuildinfo
