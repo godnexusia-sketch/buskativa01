@@ -35,6 +35,34 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `KWAI_ENABLED` | `true` liga o conector experimental do Kwai Shop |
 | `SEARCH_INTERVAL_MIN` / `SEARCH_FAST_INTERVAL_MIN` | Intervalo das buscas recorrentes (60 / 30) |
 | `AFFILIATE_PARAMS_<LOJA>` | Parâmetros de afiliado, ex.: `tag=seutag-20` |
+| `ADMIN_TOKEN` | Token Bearer das rotas `/api/admin/*`; sem ele respondem 503 |
+| `VOTE_SALT` | Sal do hash (sha256) do IP nos votos de cupom; sem ele a votação responde 503 |
+
+## Cadastrar cupons
+
+O banco começa **sem nenhum cupom**: eles só entram pela API de administração (ou, no futuro, por coleta de fonte real). Defina `ADMIN_TOKEN` e envie com `Authorization: Bearer`:
+
+```bash
+curl -X POST https://SEU-SITE/api/admin/cupons \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "store": "amazon",
+    "code": "CODIGO10",
+    "title": "10% de desconto em eletrônicos",
+    "discountType": "percent",
+    "discountValue": 10,
+    "minOrderCents": 10000,
+    "validUntil": "2026-12-31T23:59:00-03:00",
+    "sourceUrl": "https://www.amazon.com.br/promocao-exemplo",
+    "source": "manual"
+  }'
+```
+
+- `discountType`: `percent` (1 a 90), `fixed` (centavos, maior que 0) ou `frete` (valor 0). `source`: `oficial`, `telegram` ou `manual`.
+- Enviar a mesma loja + código de novo atualiza o cupom (os votos são mantidos). Erros de validação voltam com status 400 e mensagens em português.
+- Para desativar: `curl -X DELETE https://SEU-SITE/api/admin/cupons/ID -H "Authorization: Bearer $ADMIN_TOKEN"`.
+- Os visitantes votam "Funcionou" / "Não funcionou" em `/cupons` (um voto por pessoa, 10 por minuto por IP). Com 3 votos ou mais, a confiança vem da taxa de sucesso.
 
 ## Deploy (Render + Supabase)
 
