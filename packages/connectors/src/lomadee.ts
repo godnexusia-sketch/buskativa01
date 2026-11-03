@@ -49,13 +49,13 @@ const hostOf = (site: string | undefined) => {
  * Lomadee affiliate network (130+ Brazilian stores) through its official REST API. Prices come in reais.
  * Brand names are cached for 6 h so a request costs one call (the API allows 60 per minute).
  */
-export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; timeoutMs?: number; now?: () => number }) {
+export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; timeoutMs?: number; now?: () => number; retryMs?: number }) {
   const doFetch = opts.fetch ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 20000;
   const now = opts.now ?? Date.now;
   let brands: { at: number; byId: Map<string, LomadeeBrand> } | null = null;
 
-  const get = async <T>(path: string): Promise<T> => {
+  const once = async <T>(path: string): Promise<T> => {
     const signal = AbortSignal.timeout(timeoutMs);
     let res: Response;
     try {
@@ -69,6 +69,19 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
       return (await res.json()) as T;
     } catch (e) {
       throw new ConnectorError("PARSE", String(e));
+    }
+  };
+
+  // the API has passing 5xx/429 and dropped connections: up to 3 tries, 2 s then 4 s apart
+  const get = async <T>(path: string): Promise<T> => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await once<T>(path);
+      } catch (e) {
+        const passing = e instanceof ConnectorError && (e.code !== "BLOCKED" || /HTTP 429/.test(e.message));
+        if (!passing || attempt >= 3) throw e;
+        await new Promise((r) => setTimeout(r, (opts.retryMs ?? 2000) * attempt));
+      }
     }
   };
 
@@ -126,9 +139,14 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
       const byId = await brandMap().catch(() => new Map<string, LomadeeBrand>());
       const out: LomadeeCoupon[] = [];
       for (let page = 1; page <= maxPages; page++) {
-        const body = await get<{ data?: LomadeeCampaign[]; meta?: { totalPages?: number } }>(
-          `/affiliate/campaigns?types=GenericCoupon&status=onTime&page=${page}&limit=20`,
-        );
+        let body: { data?: LomadeeCampaign[]; meta?: { totalPages?: number } };
+        try {
+          body = await get(`/affiliate/campaigns?types=GenericCoupon&status=onTime&page=${page}&limit=20`);
+        } catch (e) {
+          // keep the coupons already read; the next sync picks up the rest
+          if (out.length > 0) break;
+          throw e;
+        }
         for (const c of body.data ?? []) {
           if (!c.code || !c.name) continue;
           out.push({

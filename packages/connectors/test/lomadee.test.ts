@@ -101,3 +101,38 @@ describe("lomadeeClient.page", () => {
     expect(offers[0]).toMatchObject({ externalId: "org-1:140059", sellerName: "Friopeças", price: 598 });
   });
 });
+
+describe("lomadeeClient: falhas passageiras", () => {
+  it("tenta de novo em 5xx e 429; 401 não", async () => {
+    let calls = 0;
+    const flaky = lomadeeClient({
+      apiKey: "k",
+      retryMs: 0,
+      fetch: async (u) => {
+        if (String(u).includes("/brands")) return json({ data: [] });
+        calls++;
+        return calls < 3 ? json({}, calls === 1 ? 500 : 429) : json({ data: [product()] });
+      },
+    });
+    expect(await flaky.page(1)).toHaveLength(1);
+    expect(calls).toBe(3);
+    let denied = 0;
+    const bad = lomadeeClient({ apiKey: "k", retryMs: 0, fetch: async () => (denied++, json({}, 401)) });
+    await expect(bad.page(1)).rejects.toMatchObject({ code: "BLOCKED" });
+    expect(denied).toBeLessThanOrEqual(2);
+  });
+
+  it("cupons: guarda os já lidos se uma página seguinte falhar", async () => {
+    const c = lomadeeClient({
+      apiKey: "k",
+      retryMs: 0,
+      fetch: async (u) => {
+        if (String(u).includes("/brands")) return json({ data: [] });
+        return String(u).includes("page=1&")
+          ? json({ data: [{ code: "A10", name: "10% OFF", organizationId: "o" }], meta: { totalPages: 3 } })
+          : json({}, 500);
+      },
+    });
+    expect((await c.coupons()).map((x) => x.code)).toEqual(["A10"]);
+  });
+});

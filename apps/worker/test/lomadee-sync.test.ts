@@ -59,3 +59,16 @@ describe("cupons da Lomadee", () => {
     expect(list.map((x) => [x.code, x.title])).toEqual([["BF30", "B: Cupom de R$ 30,00 de desconto"]]);
   }, 90000);
 });
+
+describe("syncLomadeeCatalog com falhas", () => {
+  it("pula a página que falha e segue", async () => {
+    const db = await createTestDb();
+    const pages: Record<number, Offer[]> = { 1: [offer("a")], 3: [offer("c")], 4: [] };
+    const r = await syncLomadeeCatalog(
+      db,
+      { page: async (n) => { if (n === 2) throw new Error("terminated"); return pages[n] ?? []; } },
+      { pauseMs: 0, now: () => now },
+    );
+    expect(r.products).toBe(2);
+  }, 90000);
+});

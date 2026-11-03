@@ -15,8 +15,17 @@ export async function syncLomadeeCatalog(db: Db, client: Pick<Client, "page">, o
   let pages = 0;
   let products = 0;
   let observations = 0;
+  let failures = 0;
   for (let page = 1; page <= maxPages; page++) {
-    const offers = await client.page(page);
+    let offers;
+    try {
+      offers = await client.page(page);
+      failures = 0;
+    } catch (err) {
+      // a page that still fails after the client retries is skipped; 5 in a row ends this sync
+      if (++failures >= 5) throw err;
+      continue;
+    }
     if (offers.length === 0) break;
     const r = await syncCatalogOffers(db, offers.filter(isAllowedOffer), now());
     pages++;
