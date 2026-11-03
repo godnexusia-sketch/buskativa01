@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { contactEmail } from "../../lib/site";
+import { contactEmail, controllerName } from "../../lib/site";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 export default function PrivacidadePage() {
   const email = contactEmail();
+  const controller = controllerName();
   return (
     <div className="prose">
       <h1>Política de Privacidade</h1>
@@ -18,13 +19,19 @@ export default function PrivacidadePage() {
         (LGPD, Lei 13.709/2018), quais dados tratamos e por quê.
       </p>
 
+      <h2>Controlador</h2>
+      <p>
+        O controlador dos dados é <strong>{controller}</strong>. O canal do encarregado e de contato para assuntos de
+        privacidade é <a href={`mailto:${email}`}>{email}</a>.
+      </p>
+
       <h2>Dados que tratamos</h2>
       <ul>
         <li>
           <strong>Endereço IP.</strong> Usado em memória para limitar o número de buscas por minuto e evitar abuso, sem
           ser gravado para essa finalidade. Quando você vota em um cupom (funcionou ou não funcionou), guardamos apenas
-          um hash irreversível do IP combinado com um segredo do servidor, para permitir um voto por cupom por pessoa.
-          Não guardamos o IP em si nem conseguimos recuperá-lo a partir do hash.
+          o IP pseudonimizado (hash com sal secreto), para permitir um voto por cupom por pessoa. Não guardamos o IP
+          em si.
         </li>
         <li>
           <strong>Termos pesquisados.</strong> O texto da busca é processado e guardado para consultar as lojas e montar
@@ -40,11 +47,13 @@ export default function PrivacidadePage() {
           armazenamento local do seu navegador (localStorage) apenas a sua escolha no aviso de cookies.
         </li>
         <li>
-          <strong>Cookies do Google, somente se você aceitar.</strong> Quando habilitados pelo site, o Google Analytics
-          (estatísticas de uso) e o Google AdSense (anúncios) podem gravar cookies e coletar dados como identificadores
-          do navegador e páginas visitadas. Eles ficam desligados até você clicar em &quot;Aceitar&quot; no aviso. Se você
-          recusar, esses sinais permanecem negados (Google Consent Mode). Você pode mudar de ideia a qualquer momento em
-          &quot;Preferências de cookies&quot;, no rodapé. Veja também a{" "}
+          <strong>Google (Analytics e AdSense), se ativados pelo site.</strong> Os scripts do Google são carregados
+          para todos os visitantes, com todos os sinais de consentimento negados (Google Consent Mode). Sem a sua
+          aceitação, não são gravados cookies do Google e os anúncios não são personalizados, mas o seu navegador
+          ainda se conecta aos servidores do Google e informações sem cookies (como IP e dados do navegador) podem ser
+          enviadas a ele. Depois que você clica em &quot;Aceitar&quot;, cookies são usados para medição de audiência e
+          anúncios personalizados. Você pode mudar de ideia a qualquer momento em &quot;Preferências de
+          cookies&quot;, no rodapé. Veja também a{" "}
           <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">
             política do Google sobre dados de sites parceiros
           </a>
@@ -62,13 +71,28 @@ export default function PrivacidadePage() {
       <h2>Compartilhamento</h2>
       <p>
         Não vendemos dados pessoais. Ao seguir um link de afiliado você sai do BUSKATIVA e passa a se sujeitar à política
-        de privacidade da loja de destino. O Google recebe dados apenas se você aceitar os cookies dele.
+        de privacidade da loja de destino. Operadores e destinatários:
       </p>
+      <ul>
+        <li>Render: hospedagem do site.</li>
+        <li>Supabase: banco de dados.</li>
+        <li>Google (Analytics/AdSense), se ativados pelo site, conforme descrito acima.</li>
+        <li>Lojas parceiras, ao seguir links de afiliado.</li>
+      </ul>
+
+      <h2>Por quanto tempo guardamos</h2>
+      <ul>
+        <li>Registros de cliques em links de afiliado: 12 meses.</li>
+        <li>Votos de cupom (IP pseudonimizado): enquanto o cupom existir e por mais 30 dias.</li>
+        <li>Termos pesquisados: mantidos como histórico dos produtos.</li>
+        <li>Dados do limite de uso por IP: apenas em memória, por poucos minutos.</li>
+        <li>Escolha de cookies: no seu navegador, até você apagá-la.</li>
+      </ul>
 
       <h2>Seus direitos</h2>
       <p>
         Pela LGPD você pode pedir confirmação de tratamento, acesso, correção, anonimização, eliminação, informação
-        sobre compartilhamento e a revogação do consentimento. Como o hash do voto não permite identificar quem votou,
+        sobre compartilhamento e a revogação do consentimento. Como o voto guarda só um IP pseudonimizado,
         talvez não consigamos localizar um voto específico; nesse caso explicaremos o motivo.
       </p>
 

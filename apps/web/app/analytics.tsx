@@ -13,7 +13,7 @@ export function Analytics() {
   if (!gaId && !adsClient) return null;
   return (
     <>
-      <Script id="consent-bootstrap" strategy="afterInteractive">{consentBootstrapScript(gaId)}</Script>
+      <Script id="consent-bootstrap" strategy="beforeInteractive">{consentBootstrapScript(gaId)}</Script>
       {gaId && (
         <Script id="gtag-js" src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`} strategy="afterInteractive" />
       )}

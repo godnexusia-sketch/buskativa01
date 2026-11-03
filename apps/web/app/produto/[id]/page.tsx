@@ -33,7 +33,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title: product.title,
     description: productDescription(product.title, STORES[product.store].name, price),
     alternates: { canonical: `/produto/${product.id}` },
-    openGraph: { type: "website", title: product.title, ...(product.imageUrl ? { images: [product.imageUrl] } : {}) },
+    openGraph: {
+      type: "website",
+      siteName: "BUSKATIVA",
+      locale: "pt_BR",
+      url: `/produto/${product.id}`,
+      title: product.title,
+      description: productDescription(product.title, STORES[product.store].name, price),
+      ...(product.imageUrl ? { images: [product.imageUrl] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.title,
+      ...(product.imageUrl ? { images: [product.imageUrl] } : {}),
+    },
   };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { adsTxtLine, DEFAULT_SITE_URL, normalizeAdsenseClient, normalizeGaId, resolveSiteUrl } from "../lib/site";
+import { afterEach, vi } from "vitest";
+import { adsTxtLine, controllerName, DEFAULT_CONTROLLER_NAME, DEFAULT_SITE_URL, siteUrl, normalizeAdsenseClient, normalizeGaId, resolveSiteUrl } from "../lib/site";
 
 describe("resolveSiteUrl", () => {
   it("usa o valor informado sem barra final", () => {
@@ -32,5 +33,24 @@ describe("normalizers", () => {
     expect(normalizeGaId("G-TEST123456")).toBe("G-TEST123456");
     expect(normalizeGaId("UA-1")).toBeNull();
     expect(normalizeGaId('G-1");alert(1)//')).toBeNull();
+  });
+});
+
+describe("controllerName e aviso de siteUrl", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("usa o nome configurado ou o padrão", () => {
+    vi.stubEnv("NEXT_PUBLIC_CONTROLLER_NAME", "");
+    expect(controllerName()).toBe(DEFAULT_CONTROLLER_NAME);
+    vi.stubEnv("NEXT_PUBLIC_CONTROLLER_NAME", " Fulano ");
+    expect(controllerName()).toBe("Fulano");
+  });
+  it("avisa uma única vez em produção sem URL", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    expect(siteUrl()).toBe(DEFAULT_SITE_URL);
+    siteUrl();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

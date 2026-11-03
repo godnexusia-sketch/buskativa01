@@ -48,6 +48,7 @@ export function productJsonLd(base: string, p: ProductLd): Record<string, unknow
   };
   if (p.imageUrl) ld.image = p.imageUrl;
   if (p.priceCents !== null && p.priceCents > 0) {
+    // availability/itemCondition ficam de fora de propósito: não temos esses dados das lojas.
     ld.offers = {
       "@type": "Offer",
       price: (p.priceCents / 100).toFixed(2),

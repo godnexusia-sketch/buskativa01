@@ -14,8 +14,15 @@ export function CookieBanner() {
 
   function choose(choice: ConsentChoice) {
     saveConsent(choice);
-    const gtag = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag;
-    if (typeof gtag === "function") gtag("consent", "update", consentState(choice));
+    const w = window as unknown as { gtag?: (...a: unknown[]) => void; dataLayer?: unknown[] };
+    if (typeof w.gtag !== "function") {
+      // gtag ainda não existe: shim mínimo, o gtag.js processa o dataLayer quando carregar
+      w.dataLayer = w.dataLayer || [];
+      w.gtag = function () {
+        w.dataLayer!.push(arguments);
+      };
+    }
+    w.gtag("consent", "update", consentState(choice));
     setOpen(false);
   }
 
@@ -23,8 +30,9 @@ export function CookieBanner() {
   return (
     <div className="cookie-banner" role="dialog" aria-label="Preferências de cookies">
       <p>
-        Usamos cookies do Google (estatísticas e anúncios) apenas se você aceitar. Sua escolha fica salva neste
-        navegador. Saiba mais na <a href="/privacidade">Política de Privacidade</a>.
+        Se você aceitar, usamos cookies do Google para estatísticas e anúncios personalizados. Sem aceitar, não
+        gravamos cookies do Google nem personalizamos anúncios, mas seu navegador ainda se conecta aos servidores do
+        Google para carregar os scripts. Saiba mais na <a href="/privacidade">Política de Privacidade</a>.
       </p>
       <div className="cookie-actions">
         <button type="button" className="ghost" onClick={() => choose("denied")}>Recusar</button>

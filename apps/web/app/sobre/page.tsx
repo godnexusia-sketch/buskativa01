@@ -19,7 +19,7 @@ export default function SobrePage() {
       <p>
         O site usa <strong>links de afiliado</strong>. Quando você clica em &quot;Ir para a loja&quot; e compra, o
         BUSKATIVA pode receber uma comissão da loja, sem nenhum custo extra para você. Também podemos exibir anúncios do
-        Google, se você aceitar os cookies.
+        Google; eles só são personalizados se você aceitar os cookies.
       </p>
 
       <h2>O que você deve saber</h2>
