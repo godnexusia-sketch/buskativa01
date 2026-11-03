@@ -64,7 +64,7 @@ curl -X POST https://SEU-SITE/api/admin/cupons \
 - Enviar a mesma loja + código de novo atualiza o cupom (os votos são mantidos). Erros de validação voltam com status 400 e mensagens em português.
 - Para desativar: `curl -X DELETE https://SEU-SITE/api/admin/cupons/ID -H "Authorization: Bearer $ADMIN_TOKEN"`.
 - Os visitantes votam "Funcionou" / "Não funcionou" em `/cupons` (um voto por pessoa, 10 por minuto por IP). Com 3 votos ou mais, a confiança vem da taxa de sucesso.
-- Cookie funcional `bk_voter`: ao votar pela primeira vez, o navegador recebe um identificador aleatório (httpOnly, SameSite=Lax, Secure em produção, 1 ano) usado só para garantir um voto por pessoa por cupom; guardamos apenas sha256(`VOTE_SALT` + id), nunca o IP em claro (sem o cookie, usa-se sha256(IP + sal)). Deve constar na página `/privacidade` (Pacote D).
+- O voto não usa cookie: guardamos só sha256(IP + `VOTE_SALT`), nunca o IP em claro. Há um voto por cupom por IP (trocável), então pessoas atrás do mesmo IP compartilham o voto.
 
 ## Deploy (Render + Supabase)
 

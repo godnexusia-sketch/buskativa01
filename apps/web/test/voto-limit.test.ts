@@ -7,7 +7,6 @@ vi.mock("@buskativa/db", () => ({
 
 import { POST } from "../app/api/cupons/[id]/voto/route";
 
-const ID = "123e4567-e89b-42d3-a456-426614174000";
 const call = (ip: string, cookie?: string) =>
   POST(
     new Request("http://localhost/api/cupons/1/voto", {
@@ -19,17 +18,15 @@ const call = (ip: string, cookie?: string) =>
   );
 
 describe("voto com o limitador real", () => {
-  it("a 11ª tentativa na janela vira 429 e o cookie funcional é definido só no primeiro voto", async () => {
+  it("a 11ª tentativa na janela vira 429 e nenhum cookie é definido", async () => {
     process.env.VOTE_SALT = "sal";
     const first = await call("7.7.7.7");
     expect(first.status).toBe(200);
-    const setCookie = first.headers.get("set-cookie") ?? "";
-    expect(setCookie).toMatch(/bk_voter=[0-9a-f-]{36}/);
-    expect(setCookie).toMatch(/HttpOnly/i);
-    expect(setCookie).toMatch(/SameSite=lax/i);
-    expect((await call("7.7.7.7", `bk_voter=${ID}`)).headers.get("set-cookie")).toBeNull();
-    for (let i = 0; i < 8; i++) expect((await call("7.7.7.7", `bk_voter=${ID}`)).status).toBe(200);
-    expect((await call("7.7.7.7")).status).toBe(429);
+    expect(first.headers.get("set-cookie")).toBeNull();
+    for (let i = 0; i < 9; i++) expect((await call("7.7.7.7", "bk_voter=forjado")).status).toBe(200);
+    const blocked = await call("7.7.7.7");
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("set-cookie")).toBeNull();
     expect((await call("8.8.8.8")).status).toBe(200);
   });
 });

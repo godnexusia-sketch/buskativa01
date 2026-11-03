@@ -262,7 +262,11 @@ export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow & 
   return row;
 }
 
-/** Active, non-expired coupons ordered by confidence (best first) then newest. */
+/**
+ * Active, non-expired coupons ordered by confidence (best first) then newest. The limit is applied in
+ * SQL after ordering by net votes (worked - failed) then newest, so the best-voted coupons survive the
+ * cut; the exact confidence ordering is then done in JS on that bounded set.
+ */
 export async function listActiveCoupons(
   db: Db,
   store: StoreId | undefined,
@@ -279,7 +283,7 @@ export async function listActiveCoupons(
         store ? eq(coupons.store, store) : undefined,
       ),
     )
-    .orderBy(desc(coupons.createdAt), desc(coupons.id))
+    .orderBy(sql`(${coupons.worked} - ${coupons.failed}) desc`, desc(coupons.createdAt), desc(coupons.id))
     .limit(limit);
   return rowsDb
     .map((c) => ({ ...c, confidence: couponConfidence(c, now) }))

@@ -2,7 +2,7 @@ import { listActiveCoupons, upsertCoupon } from "@buskativa/db";
 import { createTestDb } from "@buskativa/db/testing";
 import { describe, expect, it } from "vitest";
 import {
-  adminAuth, createCouponAdmin, deactivateCouponAdmin, hashVoter, listCouponsPublic, voteOnCoupon, voterHash, voterIdFromCookie,
+  adminAuth, createCouponAdmin, deactivateCouponAdmin, hashVoter, listCouponsPublic, voteOnCoupon,
 } from "../lib/coupon-service";
 
 const now = new Date("2026-11-03T12:00:00Z");
@@ -33,20 +33,6 @@ describe("hashVoter", () => {
   });
 });
 
-describe("identidade do votante", () => {
-  const id = "123e4567-e89b-42d3-a456-426614174000";
-  it("lê só um UUID válido do cookie bk_voter", () => {
-    expect(voterIdFromCookie(`a=1; bk_voter=${id}; b=2`)).toBe(id);
-    expect(voterIdFromCookie("bk_voter=lixo")).toBeNull();
-    expect(voterIdFromCookie(null)).toBeNull();
-  });
-  it("com cookie usa sha256(sal + id), sem cookie cai no hash do IP", () => {
-    expect(voterHash("sal", id, "1.1.1.1")).toBe(voterHash("sal", id, "2.2.2.2"));
-    expect(voterHash("sal", id, "1.1.1.1")).not.toBe(voterHash("sal", null, "1.1.1.1"));
-    expect(voterHash("sal", null, "1.1.1.1")).toBe(hashVoter("1.1.1.1", "sal"));
-  });
-});
-
 describe("cupons (serviço)", { timeout: 90000 }, () => {
   it("admin cria com validação em pt-BR, lista pública e desativa", async () => {
     const db = await createTestDb();
@@ -70,6 +56,18 @@ describe("cupons (serviço)", { timeout: 90000 }, () => {
     expect((await deactivateCouponAdmin(db, "999")).status).toBe(404);
     expect((await deactivateCouponAdmin(db, String(id))).status).toBe(200);
     expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
+  });
+
+  it("mesmo IP vota duas vezes e só atualiza; IPs diferentes somam", async () => {
+    const db = await createTestDb();
+    const c = await upsertCoupon(db, {
+      store: "amazon", code: "IP10", title: "t", description: null, discountType: "frete", discountValue: 0,
+      minOrderCents: null, validUntil: null, sourceUrl: null, source: "manual", active: true,
+    });
+    const vote = (ip: string, funcionou: boolean) => voteOnCoupon(db, String(c.id), { funcionou }, hashVoter(ip, "sal"));
+    expect((await vote("1.1.1.1", true)).body).toMatchObject({ worked: 1, failed: 0 });
+    expect((await vote("1.1.1.1", false)).body).toMatchObject({ worked: 0, failed: 1 });
+    expect((await vote("2.2.2.2", false)).body).toMatchObject({ worked: 0, failed: 2 });
   });
 
   it("voto em cupom vencido responde 410", async () => {

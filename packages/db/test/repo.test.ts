@@ -196,6 +196,11 @@ describe("cupons", { timeout: 90000 }, () => {
   it("listActiveCoupons respeita o limite", async () => {
     for (const code of ["AAA1", "AAA2", "AAA3"]) await upsertCoupon(db, { ...base, code });
     expect(await listActiveCoupons(db, undefined, now, 2)).toHaveLength(2);
+    // the limit keeps the best-voted coupon even when it is the oldest
+    const first = await upsertCoupon(db, { ...base, code: "MELHOR1" });
+    await db.execute(sql`update coupons set created_at = created_at - interval '1 day' where id = ${first.id}`);
+    for (const h of ["a", "b", "c"]) await voteCoupon(db, first.id, h, true);
+    expect((await listActiveCoupons(db, undefined, now, 1)).map((c) => c.code)).toEqual(["MELHOR1"]);
   });
 
   it("deactivateCoupon informa se o cupom existia", async () => {
