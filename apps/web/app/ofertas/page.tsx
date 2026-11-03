@@ -8,6 +8,7 @@ import { OFERTAS_PAGE_SIZE, ofertasHref, parseOfertasParams, type OfertasParams 
 import { getDb } from "../../lib/server";
 import { CategoryNav } from "../category-nav";
 import { ProductCard } from "../product-card";
+import { Reveal } from "../reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -98,9 +99,9 @@ export default async function OfertasPage({ searchParams }: { searchParams: Sear
             </div>
           ) : (
             <>
-              <div className="grid">
+              <Reveal className="grid">
                 {items.map((i) => <ProductCard key={i.productId} p={i} />)}
-              </div>
+              </Reveal>
               <nav className="pager" aria-label="Paginação">
                 {p.pagina > 1 ? <a className="btn ghost" rel="prev" href={link({ pagina: p.pagina - 1 })}>Anterior</a> : <span />}
                 <span className="muted">Página {p.pagina} de {pages}</span>

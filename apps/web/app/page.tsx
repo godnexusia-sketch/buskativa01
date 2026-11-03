@@ -5,7 +5,11 @@ import { formatBRL } from "../lib/format";
 import { loadHomeSections, loadTopDrops } from "../lib/home";
 import { AdSlot } from "./ad-slot";
 import { CategoryNav } from "./category-nav";
+import { discountPercent } from "@buskativa/core/discount";
+import { Carousel } from "./carousel";
 import { ProductCard } from "./product-card";
+import { Reveal } from "./reveal";
+import { Ticker, type TickerItem } from "./ticker";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +18,17 @@ const SUGESTOES = ["iPhone 15", "Air fryer", "PlayStation 5", "Smart TV 50", "No
 export default async function Home() {
   const [home, drops] = await Promise.all([loadHomeSections(), loadTopDrops(new Date(), 8)]);
   const empty = home.total === 0;
+  // real drops of the last 24 h first, then the biggest "de/por" discounts
+  const ticker: TickerItem[] = [
+    ...drops.map((d) => ({ productId: d.productId, title: d.title, imageUrl: d.imageUrl, priceCents: d.nowCents, pct: Math.round(d.drop * 100) })),
+    ...home.deals.map((p) => ({
+      productId: p.productId,
+      title: p.title,
+      imageUrl: p.imageUrl,
+      priceCents: p.priceCents,
+      pct: discountPercent(p.priceCents / 100, p.originalPriceCents == null ? null : p.originalPriceCents / 100) ?? 0,
+    })),
+  ].filter((t, i, all) => t.pct > 0 && all.findIndex((o) => o.productId === t.productId) === i);
 
   return (
     <>
@@ -32,9 +47,11 @@ export default async function Home() {
           </div>
         </div>
         <ul className="hero-stores" aria-label="Lojas comparadas">
-          {STORE_IDS.map((id) => <li key={id}>{STORES[id].name}</li>)}
+          {STORE_IDS.map((id, n) => <li key={id} style={{ "--n": n } as React.CSSProperties}>{STORES[id].name}</li>)}
         </ul>
       </section>
+
+      <Ticker items={ticker} />
 
       <CategoryNav counts={home.counts} />
 
@@ -48,9 +65,9 @@ export default async function Home() {
             <h2>Maiores descontos agora</h2>
             <a href="/ofertas?ordem=maior-desconto&desconto=1">Ver todos</a>
           </header>
-          <div className="grid">
+          <Reveal className="grid">
             {home.deals.map((p) => <ProductCard key={p.productId} p={p} />)}
-          </div>
+          </Reveal>
         </section>
       )}
 
@@ -86,9 +103,9 @@ export default async function Home() {
             <h2>{CATEGORIES[r.category].name}</h2>
             <a href={`/ofertas?categoria=${r.category}`}>Ver tudo</a>
           </header>
-          <div className="rail">
+          <Carousel label={CATEGORIES[r.category].name}>
             {r.items.map((p) => <ProductCard key={p.productId} p={p} />)}
-          </div>
+          </Carousel>
         </section>
       ))}
     </>

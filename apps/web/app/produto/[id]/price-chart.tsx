@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatBRL, formatDateTime } from "../../../lib/format";
 
@@ -9,6 +10,8 @@ const day = (t: number) => new Date(t).toLocaleDateString("pt-BR", { timeZone: "
 
 /** Step chart of the observed price with the highest and lowest points marked and the 30-day average as a line. */
 export function PriceChart({ points, avg }: { points: Point[]; avg?: number }) {
+  const [reduced, setReduced] = useState(true);
+  useEffect(() => setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches), []);
   const data = points.map((p) => ({ t: new Date(p.observedAt).getTime(), price: p.price }));
   if (data.length < 2) return <p className="muted">O gráfico aparece quando tivermos pelo menos dois preços registrados.</p>;
   let hi = data[0];
@@ -27,7 +30,7 @@ export function PriceChart({ points, avg }: { points: Point[]; avg?: number }) {
             <YAxis width={78} tickFormatter={brl} domain={["auto", "auto"]} tick={{ fontSize: 12, fill: "var(--muted)" }} stroke="var(--line)" />
             <Tooltip labelFormatter={(t) => formatDateTime(new Date(Number(t)))} formatter={(v) => [brl(v), "Preço"]} />
             {avg !== undefined && <ReferenceLine y={avg} stroke="var(--muted)" strokeDasharray="4 4" />}
-            <Line type="stepAfter" dataKey="price" stroke="var(--ink)" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line type="stepAfter" dataKey="price" stroke="var(--ink)" strokeWidth={2} dot={false} isAnimationActive={!reduced} animationDuration={1100} animationEasing="ease-out" />
             {hi.price !== lo.price && <ReferenceDot x={hi.t} y={hi.price} r={5} fill="var(--drop)" stroke="var(--surface)" strokeWidth={2} />}
             <ReferenceDot x={lo.t} y={lo.price} r={5} fill="var(--brand)" stroke="var(--surface)" strokeWidth={2} />
           </LineChart>

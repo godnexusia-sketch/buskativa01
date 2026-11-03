@@ -270,7 +270,82 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 .cookie-banner p { margin: 0; flex: 1 1 260px; font-size: 14px; }
 .cookie-actions { display: flex; gap: 8px; }
 
+/* ---------- motion ----------
+   Motion is a change signal: one entrance per section, a strip that can be paused, a price that just dropped.
+   Every keyframe below is switched off under prefers-reduced-motion. */
+:root { --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* hero: headline, copy and suggestions arrive in sequence on load */
+.hero-copy > * { animation: rise 0.7s var(--ease-out) both; }
+.hero-copy > :nth-child(2) { animation-delay: 0.08s; }
+.hero-copy > :nth-child(3) { animation-delay: 0.16s; }
+.hero-stores li { animation: rise 0.6s var(--ease-out) both; animation-delay: calc(0.2s + var(--n, 0) * 0.05s); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* live price-drop strip */
+.ticker { display: flex; align-items: center; gap: 10px; background: var(--hero); color: var(--hero-ink); margin: 0 -16px; padding: 10px 16px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+@media (min-width: 860px) { .ticker { margin: 0 calc(50% - 50vw); padding: 10px calc(50vw - 604px) 14px; } }
+@media (min-width: 860px) and (max-width: 1240px) { .ticker { padding-left: 32px; padding-right: 32px; } }
+.ticker-live { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--hero-muted); }
+.ticker-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--drop); box-shadow: 0 0 0 0 var(--drop); animation: pulse 1.8s ease-out infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(229, 36, 59, 0.6); } 80%, 100% { box-shadow: 0 0 0 8px rgba(229, 36, 59, 0); } }
+.ticker-viewport { flex: 1; min-width: 0; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.ticker-track { display: flex; gap: 10px; width: max-content; animation: marquee linear infinite; }
+.ticker:hover .ticker-track, .ticker:focus-within .ticker-track, .ticker.paused .ticker-track { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+.tick { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); text-decoration: none; font-size: 13px; max-width: 320px; }
+.tick:hover { background: rgba(255, 255, 255, 0.14); }
+.tick img, .tick-noimg { width: 30px; height: 30px; border-radius: 50%; object-fit: contain; background: #fff; flex: none; }
+.tick-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; color: var(--hero-muted); }
+.tick strong { font-family: var(--display); white-space: nowrap; }
+.tick-pct { color: #ff6b7d; font-weight: 800; white-space: nowrap; }
+.ticker-toggle { flex: none; background: transparent; color: var(--hero-muted); border: 1px solid rgba(255, 255, 255, 0.2); padding: 5px 10px; font-size: 12px; border-radius: 999px; }
+
+/* arrow carousels: user-driven, the next card peeks in */
+.carousel { position: relative; }
+.car-btn { position: absolute; top: 38%; z-index: 2; width: 42px; height: 42px; padding: 0; border-radius: 50%; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(14, 27, 44, 0.16); display: none; transition: opacity 0.2s, transform 0.2s var(--ease-out); }
+.car-btn.prev { left: -14px; }
+.car-btn.next { right: -14px; }
+.car-btn:disabled { opacity: 0; pointer-events: none; transform: scale(0.85); }
+@media (hover: hover) and (min-width: 640px) { .car-btn { display: inline-flex; } }
+.rail { scroll-behavior: smooth; }
+
+/* grids enter once, card by card */
+.js .reveal:not(.in) > * { opacity: 0; }
+.reveal.in > * { animation: rise 0.55s var(--ease-out) both; }
+.reveal.in > :nth-child(2) { animation-delay: 0.04s; } .reveal.in > :nth-child(3) { animation-delay: 0.08s; }
+.reveal.in > :nth-child(4) { animation-delay: 0.12s; } .reveal.in > :nth-child(5) { animation-delay: 0.16s; }
+.reveal.in > :nth-child(6) { animation-delay: 0.2s; } .reveal.in > :nth-child(7) { animation-delay: 0.24s; }
+.reveal.in > :nth-child(8) { animation-delay: 0.28s; } .reveal.in > :nth-child(n + 9) { animation-delay: 0.32s; }
+/* the discount stamp lands after its card */
+.reveal.in .stamp { animation: stamp 0.5s var(--ease-spring) both; animation-delay: 0.45s; }
+@keyframes stamp { from { opacity: 0; transform: scale(0.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+
+/* cards answer the pointer */
+.pcard { transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), border-color 0.2s; }
+.pcard-media img { transition: transform 0.4s var(--ease-out); }
+@media (hover: hover) {
+  .pcard:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(14, 27, 44, 0.12); }
+  .pcard:hover .pcard-media img { transform: scale(1.05); }
+}
+.pcard:active { transform: scale(0.98); }
+
+/* product page: the price tag drops in, a good verdict glows once */
+.pdp-price .price { animation: tag 0.7s var(--ease-spring) both; animation-delay: 0.1s; transform-origin: 13px 50%; }
+@keyframes tag { from { opacity: 0; transform: rotate(-8deg) translateY(-10px); } to { opacity: 1; transform: none; } }
+.verdict { animation: rise 0.6s var(--ease-out) both; animation-delay: 0.3s; }
+.verdict.otimo, .verdict.bom { position: relative; overflow: hidden; }
+.verdict.otimo::after, .verdict.bom::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%); transform: translateX(-100%); animation: shine 1.2s 0.9s var(--ease-out) both; pointer-events: none; }
+@keyframes shine { to { transform: translateX(100%); } }
+.facts .fact { animation: rise 0.5s var(--ease-out) both; }
+.facts .fact:nth-child(2) { animation-delay: 0.06s; } .facts .fact:nth-child(3) { animation-delay: 0.12s; } .facts .fact:nth-child(4) { animation-delay: 0.18s; }
+.catnav-item { transition: transform 0.2s var(--ease-out), border-color 0.2s, background 0.2s; }
+@media (hover: hover) { .catnav-item:hover { transform: translateY(-2px); } }
+
 @media (prefers-reduced-motion: reduce) {
-  button, .btn { transition: none; }
-  .skeleton { animation: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .js .reveal:not(.in) > * { opacity: 1; }
+  .ticker-viewport { overflow-x: auto; mask-image: none; }
+  .ticker-track > [aria-hidden="true"] { display: none; }
+  .ticker-toggle { display: none; }
 }

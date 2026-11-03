@@ -35,6 +35,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR" className={`${display.variable} ${body.variable}`}>
       <body>
+        {/* marks that scripts run, so entrance animations may start hidden (without JS everything stays visible) */}
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
         <header className="top">
           <div className="top-inner">
             <a className="logo" href="/" aria-label="BUSKATIVA, página inicial">
