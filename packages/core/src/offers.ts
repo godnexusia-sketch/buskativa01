@@ -28,7 +28,7 @@ export function filterOffers(
       (o.sellerRating === undefined || o.sellerRating >= minRating) &&
       (q.tipo === "generica" || matchesAttributes(o.title, q.atributos)),
   );
-  const med = median(base.map((o) => o.price));
+  const med = median(base.map((o) => o.price).filter((p) => p > 0));
   return base.filter((o) => !isSuspiciousPrice(o.price, med));
 }
 

@@ -50,6 +50,21 @@ describe("filterOffers", () => {
     expect(result.map((o) => o.externalId)).toEqual(["ok", "ok2"]);
   });
 
+  it("calcula a mediana só com preços positivos", () => {
+    const q = normalizeQuery("fone bluetooth");
+    const result = filterOffers(
+      [
+        offer({ externalId: "z1", price: 0 }),
+        offer({ externalId: "z2", price: 0 }),
+        offer({ externalId: "z3", price: 0 }),
+        offer({ externalId: "a", price: 100 }),
+        offer({ externalId: "erro", price: 5 }),
+      ],
+      q,
+    );
+    expect(result.map((o) => o.externalId)).toEqual(["a"]);
+  });
+
   it("em consulta específica mantém só títulos com os atributos", () => {
     const q = normalizeQuery("iPhone 15 128GB preto");
     const result = filterOffers(
