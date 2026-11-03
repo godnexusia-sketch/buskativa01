@@ -36,6 +36,7 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `SEARCH_INTERVAL_MIN` / `SEARCH_FAST_INTERVAL_MIN` | Intervalo das buscas recorrentes (60 / 30) |
 | `AFFILIATE_PARAMS_<LOJA>` | Parâmetros de afiliado, ex.: `tag=seutag-20` |
 | `ADMIN_TOKEN` | Token Bearer das rotas `/api/admin/*`; sem ele respondem 503 |
+| `TRUSTED_IP_HEADER` | Opcional: cabeçalho de IP confiável definido pela sua CDN (ex.: `cf-connecting-ip`) |
 | `VOTE_SALT` | Sal do hash (sha256) do IP nos votos de cupom; sem ele a votação responde 503 |
 
 ## Cadastrar cupons
@@ -71,7 +72,7 @@ curl -X POST https://SEU-SITE/api/admin/cupons \
 3. Preencha as variáveis marcadas como `sync: false`.
 4. O worker roda as migrações ao iniciar e já dispara 20 buscas.
 
-O limite de requisições (rate limit) da API identifica o cliente por `cf-connecting-ip`, `true-client-ip` ou `x-real-ip` quando existem; senão usa o último salto (o mais à direita) de `x-forwarded-for`, que é o adicionado pelo proxy mais próximo. Isso só é confiável se o app ficar atrás de um único proxy que acrescente esse cabeçalho e se o acesso direto ao app estiver bloqueado; com proxies extras (CDN na frente do Render, por exemplo) o último salto passa a ser o do proxy, e vários clientes podem dividir o mesmo limite. O limite fica em memória por instância, então não é compartilhado entre réplicas.
+O limite de requisições (rate limit) identifica o cliente pelo salto mais à direita de `x-forwarded-for` (o adicionado pelo proxy do Render); cabeçalhos como `cf-connecting-ip` ou `x-real-ip` são ignorados porque o cliente pode forjá-los. Se houver uma CDN sua na frente (e o app só for acessível por ela), defina `TRUSTED_IP_HEADER` (ex.: `cf-connecting-ip`) para confiar nesse único cabeçalho. O limite fica em memória por instância, então não é compartilhado entre réplicas.
 
 ## Estado das lojas
 

@@ -31,12 +31,15 @@ export function voteSalt(): string | null {
 }
 
 /**
- * Client IP for rate limiting. Headers set by a CDN/proxy win; otherwise the RIGHT-most
- * x-forwarded-for hop (the one our proxy appended) since the left-most is client-controlled.
+ * Client IP for rate limiting. Client-settable headers (cf-connecting-ip, x-real-ip...) are NOT
+ * trusted by default: only the RIGHT-most x-forwarded-for hop (appended by our proxy) is used.
+ * Set TRUSTED_IP_HEADER (e.g. "cf-connecting-ip") when a CDN you control sets that header and the
+ * app is only reachable through it; that header then becomes the only alternative trusted.
  */
 export function clientIp(req: Request): string {
-  for (const name of ["cf-connecting-ip", "true-client-ip", "x-real-ip"]) {
-    const v = req.headers.get(name)?.trim();
+  const trusted = process.env.TRUSTED_IP_HEADER?.trim().toLowerCase();
+  if (trusted) {
+    const v = req.headers.get(trusted)?.trim();
     if (v) return v;
   }
   const hops = (req.headers.get("x-forwarded-for") ?? "")
