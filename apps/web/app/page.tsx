@@ -2,6 +2,7 @@ import { STORES } from "@buskativa/core/stores";
 import { topDrops } from "@buskativa/db";
 import { formatBRL } from "../lib/format";
 import { getDb } from "../lib/server";
+import { AdSlot } from "./ad-slot";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function Home() {
     <>
       <h1>O menor preço, agora.</h1>
       <p className="muted">Pesquisamos Mercado Livre, Amazon, Magalu, Shopee, AliExpress e TikTok Shop 24 horas por dia.</p>
+      <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} />
       <h2>Maiores quedas nas últimas 24h</h2>
       {drops.length === 0 ? (
         <p className="muted">Ainda juntando histórico. Faça uma busca acima.</p>

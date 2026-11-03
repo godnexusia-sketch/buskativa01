@@ -3,6 +3,7 @@ import { STORES } from "@buskativa/core/stores";
 import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
 import { applyOfferView, parseReais, type OfferOrder } from "../../lib/offer-filters";
+import { AdSlot } from "../ad-slot";
 import { PriceBadges } from "../price-badges";
 import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
@@ -149,19 +150,22 @@ export function SearchResults({ q }: { q: string }) {
       )}
       {data.results.length > 0 && view.offers === 0 && <p>Nenhuma oferta com esses filtros.</p>}
       <div className="list">
-        {view.groups.map((items) =>
-          items.length === 1 ? (
-            <Offer key={items[0].productId} r={items[0]} />
-          ) : (
-            <div key={items[0].productId}>
-              <Offer r={items[0]} />
-              <details>
-                <summary className="muted">+{items.length - 1} ofertas parecidas</summary>
-                <div className="list">{items.slice(1).map((r) => <Offer key={r.productId} r={r} />)}</div>
-              </details>
-            </div>
-          ),
-        )}
+        {view.groups.flatMap((items, i) => {
+          const node =
+            items.length === 1 ? (
+              <Offer key={items[0].productId} r={items[0]} />
+            ) : (
+              <div key={items[0].productId}>
+                <Offer r={items[0]} />
+                <details>
+                  <summary className="muted">+{items.length - 1} ofertas parecidas</summary>
+                  <div className="list">{items.slice(1).map((r) => <Offer key={r.productId} r={r} />)}</div>
+                </details>
+              </div>
+            );
+          // um anúncio depois do 6º card de resultado
+          return i === 5 ? [node, <AdSlot key="ad-results" slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_RESULTS} />] : [node];
+        })}
       </div>
     </>
   );
