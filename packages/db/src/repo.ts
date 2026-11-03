@@ -1,4 +1,4 @@
-import { categorize, type CategoryId, COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
+import { categorize, type CategoryId, COUPON_CONFIDENCE_ORDER, normalizeQuery, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
 import { and, desc, eq, getTableColumns, gt, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
 import { clicks, couponVotes, coupons, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
@@ -467,4 +467,21 @@ export async function backfillCategories(db: Db, batch = 500): Promise<number> {
     for (const r of todo) await db.update(products).set({ category: categorize(r.title) }).where(eq(products.id, r.id));
     updated += todo.length;
   }
+}
+
+/**
+ * Saves offers collected outside the worker (e.g. the Mercado Livre affiliate hub) as one finished run under an
+ * unwatched query, so the scheduler never re-runs it; each import adds a price observation per product.
+ */
+export async function importOffers(db: Db, label: string, offers: Offer[], at = new Date()): Promise<number[]> {
+  const nq = normalizeQuery(label);
+  const [q] = await db
+    .insert(queries)
+    .values({ original: nq.original, normalized: nq, hash: nq.hash, watched: false })
+    .onConflictDoUpdate({ target: queries.hash, set: { watched: false } })
+    .returning({ id: queries.id });
+  const runId = await createRun(db, q.id, at);
+  const ids = await saveOffers(db, runId, offers, at);
+  await finishRun(db, runId, at);
+  return ids;
 }

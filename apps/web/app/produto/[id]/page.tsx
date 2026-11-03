@@ -113,7 +113,11 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             <span>{verdict.detail}</span>
           </div>
           <a className="btn btn-big" href={`/ir/${product.id}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
-          <p className="muted small">O preço pode mudar na loja. Conferimos de novo a cada hora.</p>
+          {points.length > 0 && (
+            <p className="muted small">
+              Preço visto em {formatDateTime(points[points.length - 1].observedAt)}. Pode ter mudado na loja.
+            </p>
+          )}
         </div>
       </section>
 

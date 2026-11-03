@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
-  backfillCategories, categoryCounts, createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
+  backfillCategories, categoryCounts, createRun, importOffers, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
   latestRunIdForProduct, listProducts, purgeExpiredData, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
@@ -370,6 +370,17 @@ describe("listProducts", { timeout: 90000 }, () => {
     expect(titles(await listProducts(db, { ...base, category: "audio" }))).toEqual(["Fone JBL Tune", "Fone Sony WH"]);
     expect(titles(await listProducts(db, { ...base, category: "audio", onlyDiscount: true }))).toEqual(["Fone Sony WH"]);
     expect(await categoryCounts(db)).toEqual({ audio: 2, tvs: 1 });
+  });
+
+  it("importOffers grava como execução concluída de uma busca que o agendador não repete", async () => {
+    const ids = await importOffers(db, "ml mais vendidos", [offer({ externalId: "MLB9", title: "Air Fryer Mondial", price: 299 })]);
+    await importOffers(db, "ml mais vendidos", [offer({ externalId: "MLB9", title: "Air Fryer Mondial", price: 279 })]);
+    expect((await getPriceHistory(db, ids[0])).map((p) => p.price)).toEqual([299, 279]);
+    const q = await db.execute(sql`select watched, last_run_at from queries`);
+    expect((q as unknown as { rows: { watched: boolean; last_run_at: unknown }[] }).rows).toEqual([
+      { watched: false, last_run_at: expect.anything() },
+    ]);
+    expect(await categoryCounts(db)).toEqual({ cozinha: 1 });
   });
 
   it("backfillCategories preenche só quem está sem categoria", async () => {
