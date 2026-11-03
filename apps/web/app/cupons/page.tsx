@@ -5,7 +5,7 @@ import { getDb } from "../../lib/server";
 import { CouponCard } from "./coupon-card";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Cupons de desconto | BUSKATIVA" };
+export const metadata = { title: "Cupons de desconto" };
 
 export default async function CuponsPage({ searchParams }: { searchParams: Promise<{ loja?: string }> }) {
   const raw = (await searchParams).loja;

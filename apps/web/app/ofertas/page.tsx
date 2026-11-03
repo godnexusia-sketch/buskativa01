@@ -8,7 +8,7 @@ import { getDb } from "../../lib/server";
 import { PriceBadges } from "../price-badges";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Todas as ofertas | BUSKATIVA" };
+export const metadata = { title: "Todas as ofertas" };
 
 const ORDEM_LABEL = { "menor-preco": "Menor preço", "maior-desconto": "Maior desconto", recentes: "Atualizados recentemente" } as const;
 
