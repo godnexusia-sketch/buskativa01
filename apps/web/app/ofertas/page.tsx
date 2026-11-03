@@ -1,7 +1,8 @@
 import { STORE_IDS } from "@buskativa/core";
 import { STORES } from "@buskativa/core/stores";
-import { listProducts } from "@buskativa/db";
+import { listProducts, PRODUCT_ORDERS } from "@buskativa/db";
 import { formatBRL } from "../../lib/format";
+import { formatReais } from "../../lib/offer-filters";
 import { OFERTAS_PAGE_SIZE, ofertasHref, parseOfertasParams, type OfertasParams } from "../../lib/ofertas-params";
 import { getDb } from "../../lib/server";
 import { PriceBadges } from "../price-badges";
@@ -9,8 +10,7 @@ import { PriceBadges } from "../price-badges";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Todas as ofertas | BUSKATIVA" };
 
-const ORDEM_LABEL = { "menor-preco": "Menor preço", "maior-desconto": "Maior desconto", recentes: "Mais recentes" } as const;
-const reais = (cents: number | undefined) => (cents === undefined ? "" : String(cents / 100));
+const ORDEM_LABEL = { "menor-preco": "Menor preço", "maior-desconto": "Maior desconto", recentes: "Atualizados recentemente" } as const;
 
 export default async function OfertasPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const p = parseOfertasParams(await searchParams);
@@ -28,7 +28,7 @@ export default async function OfertasPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <h1>Todas as ofertas</h1>
-      <p className="muted">Último preço de cada produto que acompanhamos.</p>
+      <p className="muted">Último preço de cada produto que acompanhamos. O filtro de preço considera o total (com frete, quando informado).</p>
       <nav className="chips" aria-label="Filtrar por loja">
         <a className={`chip ${p.loja === null ? "sel" : ""}`} href={link({ loja: null })}>Todas as lojas</a>
         {STORE_IDS.map((id) => (
@@ -37,11 +37,11 @@ export default async function OfertasPage({ searchParams }: { searchParams: Prom
       </nav>
       <form className="filters" action="/ofertas" method="get">
         {p.loja && <input type="hidden" name="loja" value={p.loja} />}
-        <label>Preço mínimo (R$)<input name="min" inputMode="decimal" defaultValue={reais(p.minCents)} placeholder="0" /></label>
-        <label>Preço máximo (R$)<input name="max" inputMode="decimal" defaultValue={reais(p.maxCents)} placeholder="sem limite" /></label>
+        <label>Preço total mínimo (R$)<input name="min" inputMode="decimal" defaultValue={formatReais(p.minCents)} placeholder="0" /></label>
+        <label>Preço total máximo (R$)<input name="max" inputMode="decimal" defaultValue={formatReais(p.maxCents)} placeholder="sem limite" /></label>
         <label>Ordenar por
           <select name="ordem" defaultValue={p.ordem}>
-            {(Object.keys(ORDEM_LABEL) as (keyof typeof ORDEM_LABEL)[]).map((o) => <option key={o} value={o}>{ORDEM_LABEL[o]}</option>)}
+            {PRODUCT_ORDERS.map((o) => <option key={o} value={o}>{ORDEM_LABEL[o]}</option>)}
           </select>
         </label>
         <button type="submit">Filtrar</button>
@@ -66,7 +66,7 @@ export default async function OfertasPage({ searchParams }: { searchParams: Prom
                   </div>
                   <PriceBadges priceCents={i.priceCents} originalPriceCents={i.originalPriceCents} pagamento={i.pagamento} />
                 </div>
-                <div className="price">{formatBRL(i.priceCents)}</div>
+                <div className="price">{formatBRL(i.priceCents + (i.shippingCents ?? 0))}</div>
                 <a className="btn" href={`/ir/${i.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
               </div>
             ))}

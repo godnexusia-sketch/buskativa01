@@ -32,6 +32,11 @@ export function parseReais(raw: string | undefined | null): number | undefined {
   return Math.min(Math.round(n * 100), MAX_CENTS);
 }
 
+/** Cents -> plain reais string ("10", "99.9"), clamped to the same range parseReais accepts. */
+export function formatReais(cents: number | undefined): string {
+  return cents === undefined ? "" : String(Math.min(Math.max(cents, 0), MAX_CENTS) / 100);
+}
+
 const discountRatio = (o: OfferLike) =>
   o.originalPriceCents !== null && o.originalPriceCents > o.priceCents ? (o.originalPriceCents - o.priceCents) / o.originalPriceCents : 0;
 
@@ -41,11 +46,13 @@ const discountRatio = (o: OfferLike) =>
  * stores among the shown offers.
  */
 export function applyOfferView<T extends OfferLike>(items: T[], v: OfferView): { groups: T[][]; offers: number; stores: number } {
+  let { minCents, maxCents } = v;
+  if (minCents !== undefined && maxCents !== undefined && minCents > maxCents) [minCents, maxCents] = [maxCents, minCents];
   let list = items.filter(
     (o) =>
       (v.store === null || o.store === v.store) &&
-      (v.minCents === undefined || o.totalCents >= v.minCents) &&
-      (v.maxCents === undefined || o.totalCents <= v.maxCents),
+      (minCents === undefined || o.totalCents >= minCents) &&
+      (maxCents === undefined || o.totalCents <= maxCents),
   );
   if (v.order === "menor-preco") list = [...list].sort((a, b) => a.totalCents - b.totalCents);
   else if (v.order === "maior-desconto") list = [...list].sort((a, b) => discountRatio(b) - discountRatio(a) || a.totalCents - b.totalCents);

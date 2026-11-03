@@ -331,7 +331,8 @@ export async function deactivateCoupon(db: Db, id: number): Promise<boolean> {
   return res.length > 0;
 }
 
-export type ProductOrder = "menor-preco" | "maior-desconto" | "recentes";
+export const PRODUCT_ORDERS = ["menor-preco", "maior-desconto", "recentes"] as const;
+export type ProductOrder = (typeof PRODUCT_ORDERS)[number];
 
 export interface ListProductsOptions {
   store?: StoreId;

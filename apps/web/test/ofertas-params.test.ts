@@ -27,6 +27,14 @@ describe("ofertasHref", () => {
     expect(ofertasHref({ pagina: 1, loja: null, minCents: undefined, maxCents: undefined, ordem: "menor-preco" })).toBe("/ofertas");
     expect(OFERTAS_PAGE_SIZE).toBe(24);
   });
+  it("limita valores fora do inteiro do banco e normaliza negativos", () => {
+    const href = ofertasHref({ pagina: 1, loja: null, minCents: 99999999999, maxCents: -10, ordem: "menor-preco" });
+    expect(href).toBe("/ofertas?min=21474836.47&max=0");
+  });
+  it("round-trip: href de parâmetros invertidos volta ordenado", () => {
+    const p = parseOfertasParams({ min: "50", max: "10" });
+    expect(ofertasHref(p)).toBe("/ofertas?min=10&max=50");
+  });
   it("monta a query com reais", () => {
     expect(ofertasHref({ pagina: 2, loja: "amazon", minCents: 1000, maxCents: 9990, ordem: "recentes" })).toBe(
       "/ofertas?pagina=2&loja=amazon&min=10&max=99.9&ordem=recentes",

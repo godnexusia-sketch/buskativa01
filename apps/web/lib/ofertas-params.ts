@@ -1,10 +1,9 @@
 import { STORE_IDS, type StoreId } from "@buskativa/core";
-import type { ProductOrder } from "@buskativa/db";
-import { MAX_CENTS, parseReais } from "./offer-filters";
+import { PRODUCT_ORDERS, type ProductOrder } from "@buskativa/db";
+import { formatReais, parseReais } from "./offer-filters";
 
 export const OFERTAS_PAGE_SIZE = 24;
 const MAX_PAGE = 10000;
-export const ORDENS: readonly ProductOrder[] = ["menor-preco", "maior-desconto", "recentes"];
 
 export interface OfertasParams {
   pagina: number;
@@ -30,19 +29,17 @@ export function parseOfertasParams(raw: Raw): OfertasParams {
     loja: STORE_IDS.includes(loja as StoreId) ? (loja as StoreId) : null,
     minCents,
     maxCents,
-    ordem: ORDENS.includes(ordem as ProductOrder) ? (ordem as ProductOrder) : "menor-preco",
+    ordem: PRODUCT_ORDERS.includes(ordem as ProductOrder) ? (ordem as ProductOrder) : "menor-preco",
   };
 }
-
-const reais = (cents: number) => String(Math.min(cents, MAX_CENTS) / 100);
 
 /** Canonical /ofertas URL for the given params; defaults are omitted. */
 export function ofertasHref(p: OfertasParams): string {
   const q = new URLSearchParams();
   if (p.pagina > 1) q.set("pagina", String(p.pagina));
   if (p.loja) q.set("loja", p.loja);
-  if (p.minCents !== undefined) q.set("min", reais(p.minCents));
-  if (p.maxCents !== undefined) q.set("max", reais(p.maxCents));
+  if (p.minCents !== undefined) q.set("min", formatReais(p.minCents));
+  if (p.maxCents !== undefined) q.set("max", formatReais(p.maxCents));
   if (p.ordem !== "menor-preco") q.set("ordem", p.ordem);
   const s = q.toString();
   return s ? `/ofertas?${s}` : "/ofertas";
