@@ -60,6 +60,17 @@ describe("parseAnchors", () => {
     expect(offers).toHaveLength(1);
     expect(offers[0].price).toBe(279.9);
   });
+
+  it("ignora link sem preço próprio quando o bloco achado tem outros produtos", () => {
+    const html =
+      '<section><h3>Oferta de boas-vindas</h3><span>R$ 1,00</span><span>R$ 10,00</span>' +
+      '<div><a href="/item/111.html" title="Fone A">A</a></div>' +
+      '<div><a href="/item/222.html" title="Fone B">B</a></div>' +
+      '<div><a href="/item/333.html" title="Fone C"><img alt="Fone C"></a><a href="/item/333.html">Fone C</a><span>R$ 59,90</span></div>' +
+      "</section>";
+    const offers = parseAnchors(html, "aliexpress", "https://pt.aliexpress.com/", /\/item\/(\d+)\.html/);
+    expect(offers).toEqual([expect.objectContaining({ externalId: "333", title: "Fone C", price: 59.9 })]);
+  });
 });
 
 describe("parseGeneric", () => {

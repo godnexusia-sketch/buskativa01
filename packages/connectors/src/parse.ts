@@ -90,6 +90,13 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
 
     let card = a.parent();
     for (let i = 0; i < 5 && card.length && parseBRL(spacedText($, card)) === null; i++) card = card.parent();
+    // climbed into a block holding other products (carousel, banner): its price isn't this product's
+    const ids = new Set<string>();
+    card.find("a[href]").each((_, other) => {
+      const om = ($(other).attr("href") ?? "").match(linkPattern);
+      if (om) ids.add(om[1] ?? om[0]);
+    });
+    if (ids.size > 1) return;
     const cardText = spacedText($, card);
     // skips installments, shipping and cashback amounts; the largest remaining one is the old "de" price
     const prices = pickCardPrices(cardText);
