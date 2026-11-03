@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
 
+const ERRO_PADRAO = "Não foi possível buscar agora. Tente de novo em instantes.";
+
 function Offer({ r }: { r: SearchResultItem }) {
   return (
     <div className="card" data-testid="offer">
@@ -24,12 +26,17 @@ function Offer({ r }: { r: SearchResultItem }) {
 export function SearchResults({ q }: { q: string }) {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const fail = (msg = ERRO_PADRAO) => {
+      if (!stopped) setError(msg);
+    };
     setData(null);
     setError(null);
+    setSlow(false);
     (async () => {
       const res = await fetch("/api/buscas", {
         method: "POST",
@@ -37,18 +44,26 @@ export function SearchResults({ q }: { q: string }) {
         body: JSON.stringify({ q }),
       });
       const body = await res.json();
-      if (!res.ok) return setError(body.error ?? "Erro na busca.");
+      if (!res.ok) return fail(typeof body?.error === "string" ? body.error : "Erro na busca.");
       const started = Date.now();
       const poll = async () => {
         if (stopped) return;
-        const r = await fetch(`/api/buscas/${body.runId}`);
-        const d = (await r.json()) as SearchResponse;
-        if (stopped) return;
-        setData(d);
-        if (d.status !== "done" && Date.now() - started < 90_000) timer = setTimeout(poll, 2000);
+        try {
+          const r = await fetch(`/api/buscas/${body.runId}`);
+          if (!r.ok) return fail();
+          const d = (await r.json()) as SearchResponse;
+          if (stopped) return;
+          if (!Array.isArray(d?.results)) return fail();
+          setData(d);
+          if (d.status === "done") return;
+          if (Date.now() - started < 90_000) timer = setTimeout(poll, 2000);
+          else setSlow(true);
+        } catch {
+          fail();
+        }
       };
       await poll();
-    })().catch((e) => setError(String(e)));
+    })().catch(() => fail());
     return () => {
       stopped = true;
       clearTimeout(timer);
@@ -69,7 +84,8 @@ export function SearchResults({ q }: { q: string }) {
             {STORES[id as keyof typeof STORES].name}: {s?.ok ? `${s.count} ofertas` : "indisponível agora"}
           </span>
         ))}
-        {data.status !== "done" && <span className="chip">buscando…</span>}
+        {data.status !== "done" && !slow && <span className="chip">buscando…</span>}
+        {data.status !== "done" && slow && <span className="chip fail">A busca está demorando mais que o normal.</span>}
       </div>
       {data.results.length === 0 && data.status === "done" && <p>Nenhuma oferta encontrada.</p>}
       <div className="list">

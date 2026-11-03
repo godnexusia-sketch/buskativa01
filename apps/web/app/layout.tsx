@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <header className="top">
           <a className="logo" href="/">BUSKATIVA</a>
           <form className="search" action="/busca">
-            <input name="q" placeholder="Busque um produto…" required minLength={2} maxLength={120} />
+            <input name="q" placeholder="Busque um produto: ex. iPhone 15 128GB preto" required minLength={2} maxLength={120} />
             <button type="submit">Buscar</button>
           </form>
         </header>
