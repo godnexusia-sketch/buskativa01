@@ -15,6 +15,13 @@
       "when": 1793671427168,
       "tag": "0001_rapid_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793673983359,
+      "tag": "0002_gifted_wendigo",
+      "breakpoints": true
     }
   ]
 }

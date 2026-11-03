@@ -40,8 +40,13 @@ export async function saveOffers(db: Db, runId: number, offers: Offer[], observe
       .returning({ id: products.id });
     const priceCents = toCents(o.price);
     const shippingCents = o.shipping === null ? null : toCents(o.shipping);
-    await db.insert(priceObservations).values({ productId: p.id, priceCents, shippingCents, observedAt });
-    await db.insert(queryResults).values({ runId, productId: p.id, position, priceCents, shippingCents });
+    const originalPriceCents = o.originalPrice === undefined ? null : toCents(o.originalPrice);
+    await db
+      .insert(priceObservations)
+      .values({ productId: p.id, priceCents, originalPriceCents, shippingCents, observedAt });
+    await db
+      .insert(queryResults)
+      .values({ runId, productId: p.id, position, priceCents, originalPriceCents, shippingCents });
     ids.push(p.id);
   }
   return ids;
@@ -61,6 +66,11 @@ export async function finishRun(db: Db, runId: number, at = new Date()) {
     .where(eq(searchRuns.id, runId))
     .returning({ queryId: searchRuns.queryId });
   if (run) await db.update(queries).set({ lastRunAt: at }).where(eq(queries.id, run.queryId));
+}
+
+function pagamentoOf(attributes: Record<string, string>): "app" | "pix" | null {
+  const p = attributes.pagamento;
+  return p === "app" || p === "pix" ? p : null;
 }
 
 export async function getRunWithResults(db: Db, runId: number) {
@@ -84,13 +94,18 @@ export async function getRunWithResults(db: Db, runId: number) {
       title: products.title,
       imageUrl: products.imageUrl,
       priceCents: queryResults.priceCents,
+      originalPriceCents: queryResults.originalPriceCents,
       shippingCents: queryResults.shippingCents,
+      attributes: products.attributes,
     })
     .from(queryResults)
     .innerJoin(products, eq(products.id, queryResults.productId))
     .where(eq(queryResults.runId, runId))
     .orderBy(sql`${queryResults.priceCents} + coalesce(${queryResults.shippingCents}, 0)`);
-  return { ...run, results };
+  return {
+    ...run,
+    results: results.map(({ attributes, ...r }) => ({ ...r, pagamento: pagamentoOf(attributes) })),
+  };
 }
 
 export type RunWithResults = NonNullable<Awaited<ReturnType<typeof getRunWithResults>>>;
@@ -131,6 +146,17 @@ export async function getPriceHistory(db: Db, productId: number): Promise<PriceP
     .where(eq(priceObservations.productId, productId))
     .orderBy(priceObservations.observedAt, priceObservations.id);
   return obs.map((o) => ({ price: o.priceCents / 100, observedAt: o.observedAt }));
+}
+
+/** Original ("de") price of the product's most recent observation, or null. */
+export async function getLatestOriginalPriceCents(db: Db, productId: number): Promise<number | null> {
+  const [o] = await db
+    .select({ originalPriceCents: priceObservations.originalPriceCents })
+    .from(priceObservations)
+    .where(eq(priceObservations.productId, productId))
+    .orderBy(desc(priceObservations.observedAt), desc(priceObservations.id))
+    .limit(1);
+  return o?.originalPriceCents ?? null;
 }
 
 export async function latestRunIdForProduct(db: Db, productId: number): Promise<number | null> {

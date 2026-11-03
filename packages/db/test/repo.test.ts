@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
-  createRun, finishRun, getPriceHistory, getRecentRunForHash, getRunWithResults,
+  createRun, finishRun, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
   latestRunIdForProduct, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
@@ -47,6 +47,22 @@ describe("repo", () => {
     expect(run!.results.map((r) => r.priceCents)).toEqual([5000, 9000]);
     expect(run!.query.termo).toBe("fone bluetooth");
     expect(await latestRunIdForProduct(db, p1)).toBe(r2);
+  });
+
+  it("saveOffers grava o preço original e getRunWithResults devolve com a forma de pagamento", { timeout: 90000 }, async () => {
+    const q = await upsertQuery(db, nq);
+    const r = await createRun(db, q.id);
+    const [com, sem] = await saveOffers(db, r, [
+      offer({ price: 75, originalPrice: 100, attributes: { pagamento: "app" } }),
+      offer({ externalId: "MLB2", price: 120 }),
+    ]);
+    const run = await getRunWithResults(db, r);
+    expect(run!.results.map((x) => [x.productId, x.priceCents, x.originalPriceCents, x.pagamento])).toEqual([
+      [com, 7500, 10000, "app"],
+      [sem, 12000, null, null],
+    ]);
+    expect(await getLatestOriginalPriceCents(db, com)).toBe(10000);
+    expect(await getLatestOriginalPriceCents(db, sem)).toBeNull();
   });
 
   it("updateRunStoreStatus mescla lojas e finishRun conclui", async () => {
