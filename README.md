@@ -27,7 +27,11 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 
 | Variável | Para quê |
 |---|---|
-| `DATABASE_URL` | Postgres (Supabase em produção) |
+| `DATABASE_URL` | Postgres (Supabase em produção). Parâmetros `ssl*` da URL (ex.: `sslmode`) são ignorados: o TLS vem de `DATABASE_SSL` |
+| `DATABASE_SSL` | `disable`, `require` (criptografa sem verificar o certificado) ou `verify` (verifica contra `DATABASE_CA_CERT`). Vazio = `require` fora do localhost e `disable` no localhost |
+| `DATABASE_CA_CERT` | Certificado da CA em PEM, só para `DATABASE_SSL=verify` (aceita `
+` literal) |
+| `DB_POOL_MAX` | Conexões máximas do pool por processo, web e worker (padrão 5) |
 | `REDIS_URL` | Redis da fila |
 | `CONNECTORS` | `demo` para lojas falsas; vazio para as reais |
 | `ML_ACCESS_TOKEN` | Token do Mercado Livre, se a API de busca exigir |
@@ -37,10 +41,12 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `AFFILIATE_PARAMS_<LOJA>` | Parâmetros de afiliado, ex.: `tag=seutag-20` |
 | `ADMIN_TOKEN` | Token Bearer das rotas `/api/admin/*`; sem ele respondem 503 |
 | `TRUSTED_IP_HEADER` | Opcional: cabeçalho de IP confiável definido pela sua CDN (ex.: `cf-connecting-ip`) |
+| `LOG_CLIENT_IP_HEADERS` | `true` registra uma vez por processo os cabeçalhos de IP crus da primeira busca (checagem de deploy; desligue depois) |
 | `VOTE_SALT` | Sal do hash (sha256) do IP nos votos de cupom; sem ele a votação responde 503 |
-| `WORKER_CONCURRENCY` | Buscas simultâneas no worker (3 por padrão; o `render.yaml` usa 1 por causa do Chromium em 512 MB) |
+| `WORKER_CONCURRENCY` | Buscas simultâneas no worker (3 por padrão; o `render.yaml` e o `.env.example` usam 1 por causa do Chromium em 512 MB) |
+| `BROWSER_MAX_CONTEXTS` | Páginas do Chromium abertas ao mesmo tempo, somando todas as lojas (padrão 1) |
 | `PORT` | Worker: se definida, abre o health check HTTP (`/` e `/healthz`); o Render a injeta |
-| `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_CONTROLLER_NAME` | URL canônica, e-mail de contato e nome do controlador (LGPD) |
+| `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_CONTROLLER_NAME` | URL canônica, e-mail de contato e nome do controlador (LGPD). Defina `NEXT_PUBLIC_CONTACT_EMAIL` em produção: sem ela, `/contato` e `/privacidade` mostram o e-mail padrão do código |
 | `GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_ADSENSE_CLIENT`, `NEXT_PUBLIC_ADSENSE_SLOT_HOME` / `_RESULTS` / `_PRODUCT` | Integrações Google, veja "Ligar o Google" |
 
 As variáveis `NEXT_PUBLIC_*` são embutidas no site durante o build: depois de mudar uma, faça um novo deploy do `buskativa-web`.
@@ -74,14 +80,22 @@ curl -X POST https://SEU-SITE/api/admin/cupons \
 
 ## Deploy no Render
 
-1. **Supabase:** crie um projeto e, em *Connect*, copie a connection string do **Session pooler** (porta 5432, host `...pooler.supabase.com`; o endereço direto só tem IPv6 e o Render não alcança). Troque `[YOUR-PASSWORD]` pela senha do banco. Ela será o `DATABASE_URL`.
-2. **Blueprint:** no Render, *New > Blueprint*, escolha este repositório (o Render lê o `render.yaml`). Serão criados `buskativa-web`, `buskativa-worker` (ambos Web Service Docker, plano `starter`, região `oregon`, a mais próxima do Brasil) e o Key Value `buskativa-redis` (plano gratuito). `REDIS_URL`, `ADMIN_TOKEN` e `VOTE_SALT` são preenchidos sozinhos.
+1. **Supabase:** crie um projeto e, em *Connect*, copie a connection string do **Session pooler** (porta 5432, host `...pooler.supabase.com`; o endereço direto só tem IPv6 e o Render não alcança). Troque `[YOUR-PASSWORD]` pela senha do banco. Ela será o `DATABASE_URL`. A conexão usa TLS (`DATABASE_SSL` vazio = `require` para host remoto); se a URL tiver `?sslmode=require`, ele é ignorado (o driver `pg` o trataria como `verify-full` e recusaria o certificado do pooler). Para verificar o certificado, baixe o da CA do Supabase (*Database Settings > SSL*) e use `DATABASE_SSL=verify` com `DATABASE_CA_CERT`. O session pooler do plano gratuito aceita cerca de 15 clientes ao todo: por isso `DB_POOL_MAX=5` em cada serviço (web + worker = 10, com folga para migrações e o painel).
+2. **Blueprint:** no Render, *New > Blueprint*, escolha este repositório (o Render lê o `render.yaml`). Serão criados `buskativa-web`, `buskativa-worker` (ambos Web Service Docker, plano `starter`, região `virginia`, a região do Render mais próxima do Brasil; não há região na América do Sul) e o Key Value `buskativa-redis` (plano gratuito). `REDIS_URL`, `ADMIN_TOKEN` e `VOTE_SALT` são preenchidos sozinhos.
 3. **Variáveis:** o Render pede as marcadas `sync: false`. Cole o mesmo `DATABASE_URL` nos dois serviços. Preencha `NEXT_PUBLIC_SITE_URL` com a URL pública do web (ex.: `https://buskativa-web.onrender.com`; se o Render acrescentar um sufixo ao nome, use a URL real e atualize depois). Tudo o que for opcional (Google, afiliados, `ML_ACCESS_TOKEN`, PA-API) pode ficar vazio e ser preenchido depois.
 4. **Primeira subida:** o worker roda as migrações ao iniciar e já enfileira 20 buscas. O web só deve receber tráfego depois disso (deixe o worker subir primeiro, ou faça um *Manual Deploy* do web em seguida).
-5. **Health checks:** o web usa `/`; o worker usa `/healthz`, que responde 200 com `{"ok":true,"queue":"connected"}`. É teste de vida: continua 200 enquanto o Redis reconecta (campo `queue` vira `disconnected`), porque reiniciar o container por isso só derrubaria o Chromium.
+5. **Health checks:** o web usa `/api/health` (200 `{"ok":true}` sem tocar no banco; a home também abre sem banco, com o estado vazio); o worker usa `/healthz`, que responde 200 com `{"ok":true,"queue":"connected"}`. É teste de vida: continua 200 enquanto o Redis reconecta (campo `queue` vira `disconnected`), porque reiniciar o container por isso só derrubaria o Chromium.
 6. **Admin:** o valor gerado de `ADMIN_TOKEN` fica em *Environment* do `buskativa-web`; use-o para cadastrar cupons (seção acima).
 
-O Chromium do worker precisa de memória: com `WORKER_CONCURRENCY=1` o plano `starter` (512 MB) comporta uma busca por vez. Para aumentar a concorrência, suba o plano antes.
+**Memória do worker.** 512 MB (plano `starter`) é apertado para Node + Chromium. Para caber, o worker roda com `node` direto (sem o `npm` como processo pai), `NODE_OPTIONS=--max-old-space-size=256`, `WORKER_CONCURRENCY=1`, `BROWSER_MAX_CONTEXTS=1` (uma página do Chromium por vez, somando todas as lojas) e sem baixar imagens, vídeos e fontes. Isso não é garantia: confira o gráfico de memória depois do primeiro deploy e, se houver reinícios por falta de memória, suba o worker para o plano `standard` (2 GB) antes de aumentar a concorrência. Com um contexto só, as lojas de navegador de uma busca rodam em fila; o tempo de cada busca no navegador (45 s) não conta essa espera, e o limite externo por tentativa é calculado por lojas × tempo por busca.
+
+### Checklist depois do primeiro deploy
+
+1. **IP do cliente:** defina `LOG_CLIENT_IP_HEADERS=true` no `buskativa-web`, faça uma busca no site e procure nos logs a linha `cabeçalhos de IP do cliente` (`x-forwarded-for`, `true-client-ip`, `cf-connecting-ip` e o `clientIp` escolhido). Se o `clientIp` não for o seu IP público, defina `TRUSTED_IP_HEADER` com o cabeçalho certo (só se ele vier de um proxy/CDN que o cliente não consegue forjar). Depois apague `LOG_CLIENT_IP_HEADERS`.
+2. **Memória do worker:** em *Metrics* do `buskativa-worker`, confira que a memória fica abaixo de 512 MB durante as buscas (veja acima).
+3. **Consentimento:** com GA ou AdSense ligados, abra o site numa janela anônima e, no console, rode `dataLayer[0]`: deve ser o `consent default` com `ad_storage`, `ad_user_data`, `ad_personalization` e `analytics_storage` em `denied`.
+4. **URLs públicas:** `NEXT_PUBLIC_SITE_URL` precisa estar definida **antes do primeiro build** do web (é embutida no build). Confira que `/robots.txt`, `/sitemap.xml` e `/ads.txt` (se o AdSense estiver ligado) usam esse domínio, e não `localhost`.
+5. **Retenção:** nos logs do worker, a linha `retenção: dados antigos apagados` aparece na partida e a cada 24 h (cliques com mais de 12 meses e votos de cupons inativos ou vencidos há mais de 30 dias).
 
 ## Ligar o Google
 
