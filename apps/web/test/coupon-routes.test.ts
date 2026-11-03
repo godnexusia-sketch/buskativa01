@@ -9,11 +9,12 @@ vi.mock("../lib/server", () => ({
 vi.mock("@buskativa/db", () => ({
   upsertCoupon: async (_db: unknown, c: unknown) => {
     created.push(c);
-    return { id: 1, ...(c as object), worked: 0, failed: 0, createdAt: new Date() };
+    return { id: 1, ...(c as object), worked: 0, failed: 0, createdAt: new Date(), created: true };
   },
   deactivateCoupon: async () => true,
 }));
 
+import { afterEach, beforeEach } from "vitest";
 import { DELETE } from "../app/api/admin/cupons/[id]/route";
 import { POST } from "../app/api/admin/cupons/route";
 
@@ -22,6 +23,15 @@ const post = (headers: Record<string, string>) =>
   POST(new Request("http://localhost/api/admin/cupons", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(payload) }));
 
 describe("rotas admin de cupons", () => {
+  const original = process.env.ADMIN_TOKEN;
+  beforeEach(() => {
+    created.length = 0;
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env.ADMIN_TOKEN;
+    else process.env.ADMIN_TOKEN = original;
+  });
+
   it("sem ADMIN_TOKEN configurado responde 503", async () => {
     delete process.env.ADMIN_TOKEN;
     expect((await post({ authorization: "Bearer x" })).status).toBe(503);

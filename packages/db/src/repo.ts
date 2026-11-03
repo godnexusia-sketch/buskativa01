@@ -1,5 +1,5 @@
 import { COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
-import { and, desc, eq, gte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gt, gte, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
 import { clicks, couponVotes, coupons, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
 
@@ -242,7 +242,7 @@ export type CouponRow = typeof coupons.$inferSelect;
 export type CouponWithConfidence = CouponRow & { confidence: CouponConfidence };
 
 /** Creates or updates a coupon by (store, code). Vote counters are never reset. */
-export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow> {
+export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow & { created: boolean }> {
   const fields = {
     title: c.title,
     description: c.description,
@@ -258,17 +258,29 @@ export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow> {
     .insert(coupons)
     .values({ store: c.store, code: c.code, ...fields })
     .onConflictDoUpdate({ target: [coupons.store, coupons.code], set: fields })
-    .returning();
+    .returning({ ...getTableColumns(coupons), created: sql<boolean>`(xmax = 0)` });
   return row;
 }
 
 /** Active, non-expired coupons ordered by confidence (best first) then newest. */
-export async function listActiveCoupons(db: Db, store: StoreId | undefined, now: Date): Promise<CouponWithConfidence[]> {
+export async function listActiveCoupons(
+  db: Db,
+  store: StoreId | undefined,
+  now: Date,
+  limit = 200,
+): Promise<CouponWithConfidence[]> {
   const rowsDb = await db
     .select()
     .from(coupons)
-    .where(and(eq(coupons.active, true), store ? eq(coupons.store, store) : undefined))
-    .orderBy(desc(coupons.createdAt), desc(coupons.id));
+    .where(
+      and(
+        eq(coupons.active, true),
+        or(isNull(coupons.validUntil), gt(coupons.validUntil, now)),
+        store ? eq(coupons.store, store) : undefined,
+      ),
+    )
+    .orderBy(desc(coupons.createdAt), desc(coupons.id))
+    .limit(limit);
   return rowsDb
     .map((c) => ({ ...c, confidence: couponConfidence(c, now) }))
     .filter((c) => c.confidence !== "expirado")
@@ -278,17 +290,19 @@ export async function listActiveCoupons(db: Db, store: StoreId | undefined, now:
 /**
  * One vote per voter per coupon; repeating the same vote is a no-op and a different
  * vote moves the counter. The coupon row is locked so counters stay consistent.
- * Returns the updated coupon, or null when the coupon does not exist or is inactive.
+ * Returns the updated coupon, "expired" when its validity ended, or null when it does not exist or is inactive.
  */
 export async function voteCoupon(
   db: Db,
   couponId: number,
   voterHash: string,
   worked: boolean,
-): Promise<CouponRow | null> {
+  now = new Date(),
+): Promise<CouponRow | "expired" | null> {
   return db.transaction(async (tx) => {
     const [coupon] = await tx.select().from(coupons).where(eq(coupons.id, couponId)).for("update");
     if (!coupon || !coupon.active) return null;
+    if (coupon.validUntil && coupon.validUntil <= now) return "expired";
     const [prev] = await tx
       .select()
       .from(couponVotes)

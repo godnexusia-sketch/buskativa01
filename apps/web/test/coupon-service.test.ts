@@ -2,7 +2,7 @@ import { listActiveCoupons, upsertCoupon } from "@buskativa/db";
 import { createTestDb } from "@buskativa/db/testing";
 import { describe, expect, it } from "vitest";
 import {
-  adminAuth, createCouponAdmin, deactivateCouponAdmin, hashVoter, listCouponsPublic, voteOnCoupon,
+  adminAuth, createCouponAdmin, deactivateCouponAdmin, hashVoter, listCouponsPublic, voteOnCoupon, voterHash, voterIdFromCookie,
 } from "../lib/coupon-service";
 
 const now = new Date("2026-11-03T12:00:00Z");
@@ -33,6 +33,20 @@ describe("hashVoter", () => {
   });
 });
 
+describe("identidade do votante", () => {
+  const id = "123e4567-e89b-42d3-a456-426614174000";
+  it("lê só um UUID válido do cookie bk_voter", () => {
+    expect(voterIdFromCookie(`a=1; bk_voter=${id}; b=2`)).toBe(id);
+    expect(voterIdFromCookie("bk_voter=lixo")).toBeNull();
+    expect(voterIdFromCookie(null)).toBeNull();
+  });
+  it("com cookie usa sha256(sal + id), sem cookie cai no hash do IP", () => {
+    expect(voterHash("sal", id, "1.1.1.1")).toBe(voterHash("sal", id, "2.2.2.2"));
+    expect(voterHash("sal", id, "1.1.1.1")).not.toBe(voterHash("sal", null, "1.1.1.1"));
+    expect(voterHash("sal", null, "1.1.1.1")).toBe(hashVoter("1.1.1.1", "sal"));
+  });
+});
+
 describe("cupons (serviço)", { timeout: 90000 }, () => {
   it("admin cria com validação em pt-BR, lista pública e desativa", async () => {
     const db = await createTestDb();
@@ -42,6 +56,7 @@ describe("cupons (serviço)", { timeout: 90000 }, () => {
 
     const ok = await createCouponAdmin(db, body, now);
     expect(ok.status).toBe(201);
+    expect((await createCouponAdmin(db, { ...body, title: "Outro título" }, now)).status).toBe(200);
     expect(ok.body).toMatchObject({ coupon: { code: "ECONOMIZA10", confidence: "baixa", worked: 0, failed: 0 } });
 
     const list = await listCouponsPublic(db, null, now);
@@ -57,6 +72,16 @@ describe("cupons (serviço)", { timeout: 90000 }, () => {
     expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
   });
 
+  it("voto em cupom vencido responde 410", async () => {
+    const db = await createTestDb();
+    const c = await upsertCoupon(db, {
+      store: "amazon", code: "VENC10", title: "t", description: null, discountType: "frete", discountValue: 0,
+      minOrderCents: null, validUntil: new Date(Date.now() - 1000), sourceUrl: null, source: "manual", active: true,
+    });
+    const r = await voteOnCoupon(db, String(c.id), { funcionou: true }, "h1");
+    expect(r).toEqual({ status: 410, body: { error: "Este cupom já venceu." } });
+  });
+
   it("voto: valida corpo, conta uma vez por pessoa e deixa trocar", async () => {
     const db = await createTestDb();
     const c = await upsertCoupon(db, {
@@ -64,13 +89,13 @@ describe("cupons (serviço)", { timeout: 90000 }, () => {
       minOrderCents: null, validUntil: null, sourceUrl: null, source: "manual", active: true,
     });
     const id = String(c.id);
-    expect((await voteOnCoupon(db, "x", { funcionou: true }, "1.1.1.1", "sal")).status).toBe(400);
-    expect((await voteOnCoupon(db, id, { funcionou: "sim" }, "1.1.1.1", "sal")).body).toEqual({ error: "Informe funcionou: true ou false." });
-    expect((await voteOnCoupon(db, "999", { funcionou: true }, "1.1.1.1", "sal")).status).toBe(404);
+    expect((await voteOnCoupon(db, "x", { funcionou: true }, "h1")).status).toBe(400);
+    expect((await voteOnCoupon(db, id, { funcionou: "sim" }, "h1")).body).toEqual({ error: "Informe funcionou: true ou false." });
+    expect((await voteOnCoupon(db, "999", { funcionou: true }, "h1")).status).toBe(404);
 
-    expect((await voteOnCoupon(db, id, { funcionou: true }, "1.1.1.1", "sal")).body).toEqual({ worked: 1, failed: 0, confidence: "baixa" });
-    expect((await voteOnCoupon(db, id, { funcionou: true }, "1.1.1.1", "sal")).body).toMatchObject({ worked: 1, failed: 0 });
-    expect((await voteOnCoupon(db, id, { funcionou: false }, "1.1.1.1", "sal")).body).toMatchObject({ worked: 0, failed: 1 });
-    expect((await voteOnCoupon(db, id, { funcionou: true }, "2.2.2.2", "sal")).body).toMatchObject({ worked: 1, failed: 1 });
+    expect((await voteOnCoupon(db, id, { funcionou: true }, "h1")).body).toEqual({ worked: 1, failed: 0, confidence: "baixa" });
+    expect((await voteOnCoupon(db, id, { funcionou: true }, "h1")).body).toMatchObject({ worked: 1, failed: 0 });
+    expect((await voteOnCoupon(db, id, { funcionou: false }, "h1")).body).toMatchObject({ worked: 0, failed: 1 });
+    expect((await voteOnCoupon(db, id, { funcionou: true }, "h2")).body).toMatchObject({ worked: 1, failed: 1 });
   });
 });

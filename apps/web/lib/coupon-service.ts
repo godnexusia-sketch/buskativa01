@@ -60,6 +60,19 @@ export function hashVoter(ip: string, salt: string): string {
   return createHash("sha256").update(`${ip}${salt}`).digest("hex");
 }
 
+const VOTER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Extracts a well-formed bk_voter id from a Cookie header, or null. */
+export function voterIdFromCookie(cookieHeader: string | null): string | null {
+  const m = /(?:^|;\s*)bk_voter=([^;]+)/.exec(cookieHeader ?? "");
+  return m && VOTER_ID_RE.test(m[1]) ? m[1].toLowerCase() : null;
+}
+
+/** sha256(salt + cookieId) when the voter has the cookie; otherwise sha256(ip + salt). */
+export function voterHash(salt: string, cookieId: string | null, ip: string): string {
+  return cookieId ? createHash("sha256").update(`${salt}${cookieId}`).digest("hex") : hashVoter(ip, salt);
+}
+
 export async function listCouponsPublic(db: Db, loja: string | null, now: Date): Promise<ServiceResult> {
   if (loja && !STORE_IDS.includes(loja as StoreId)) return { status: 400, body: { error: "Loja inválida." } };
   const rows = await listActiveCoupons(db, (loja as StoreId | null) ?? undefined, now);
@@ -70,7 +83,7 @@ export async function createCouponAdmin(db: Db, input: unknown, now: Date): Prom
   const v = validateCoupon(input, now);
   if (!v.ok) return { status: 400, body: { errors: v.errors } };
   const row = await upsertCoupon(db, v.value);
-  return { status: 201, body: { coupon: toPublicCoupon(row, now) } };
+  return { status: row.created ? 201 : 200, body: { coupon: toPublicCoupon(row, now) } };
 }
 
 function parseId(raw: string): number | null {
@@ -88,14 +101,14 @@ export async function voteOnCoupon(
   db: Db,
   rawId: string,
   input: unknown,
-  ip: string,
-  salt: string,
+  voterHash: string,
 ): Promise<ServiceResult> {
   const id = parseId(rawId);
   if (id === null) return { status: 400, body: { error: "id inválido" } };
   const funcionou = (input as { funcionou?: unknown } | null)?.funcionou;
   if (typeof funcionou !== "boolean") return { status: 400, body: { error: "Informe funcionou: true ou false." } };
-  const row = await voteCoupon(db, id, hashVoter(ip, salt), funcionou);
+  const row = await voteCoupon(db, id, voterHash, funcionou);
+  if (row === "expired") return { status: 410, body: { error: "Este cupom já venceu." } };
   if (!row) return { status: 404, body: { error: "Cupom não encontrado." } };
   const { worked, failed, confidence } = toPublicCoupon(row, new Date());
   return { status: 200, body: { worked, failed, confidence } };

@@ -182,6 +182,22 @@ describe("cupons", { timeout: 90000 }, () => {
     expect(await voteCoupon(db, c.id, "h1", true)).toBeNull();
   });
 
+  it("voteCoupon recusa cupom vencido", async () => {
+    const c = await upsertCoupon(db, { ...base, validUntil: new Date("2026-11-04T00:00:00Z") });
+    expect(await voteCoupon(db, c.id, "h1", true, now)).toMatchObject({ worked: 1 });
+    expect(await voteCoupon(db, c.id, "h2", true, new Date("2026-11-05T00:00:00Z"))).toBe("expired");
+  });
+
+  it("upsertCoupon informa se criou ou atualizou", async () => {
+    expect((await upsertCoupon(db, base)).created).toBe(true);
+    expect((await upsertCoupon(db, { ...base, title: "x" })).created).toBe(false);
+  });
+
+  it("listActiveCoupons respeita o limite", async () => {
+    for (const code of ["AAA1", "AAA2", "AAA3"]) await upsertCoupon(db, { ...base, code });
+    expect(await listActiveCoupons(db, undefined, now, 2)).toHaveLength(2);
+  });
+
   it("deactivateCoupon informa se o cupom existia", async () => {
     const c = await upsertCoupon(db, base);
     expect(await deactivateCoupon(db, c.id)).toBe(true);
