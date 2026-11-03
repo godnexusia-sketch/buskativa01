@@ -34,7 +34,7 @@ describe("productJsonLd", () => {
     const ld = productJsonLd(base, p) as Record<string, any>;
     expect(ld["@type"]).toBe("Product");
     expect(ld.name).toBe("Fone X");
-    expect(ld.offers).toMatchObject({ "@type": "Offer", price: "123.45", priceCurrency: "BRL", url: `${base}/ir/3` });
+    expect(ld.offers).toMatchObject({ "@type": "Offer", price: "123.45", priceCurrency: "BRL", url: `${base}/produto/3` });
   });
   it("sem preço omite offers", () => {
     expect(productJsonLd(base, { ...p, priceCents: null }).offers).toBeUndefined();

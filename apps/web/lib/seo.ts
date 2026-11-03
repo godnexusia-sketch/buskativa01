@@ -53,7 +53,8 @@ export function productJsonLd(base: string, p: ProductLd): Record<string, unknow
       "@type": "Offer",
       price: (p.priceCents / 100).toFixed(2),
       priceCurrency: "BRL",
-      url: `${base}/ir/${p.id}`,
+      // the canonical product page, not /ir/ (a redirect disallowed in robots.txt)
+      url: `${base}/produto/${p.id}`,
       seller: { "@type": "Organization", name: p.storeName },
     };
   }

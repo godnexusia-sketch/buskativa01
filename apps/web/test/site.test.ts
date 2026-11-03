@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { adsTxtLine, controllerName, DEFAULT_CONTROLLER_NAME, DEFAULT_SITE_URL, siteUrl, normalizeAdsenseClient, normalizeGaId, resolveSiteUrl } from "../lib/site";
 
 describe("resolveSiteUrl", () => {
