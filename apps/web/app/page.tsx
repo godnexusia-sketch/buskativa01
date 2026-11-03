@@ -10,15 +10,26 @@ import { Carousel } from "./carousel";
 import { DepthShowcase } from "./depth-showcase";
 import { ProductCard, storeLabel } from "./product-card";
 import { SearchIcon } from "./icons";
-import { CountTo, StaggerGrid } from "./motion";
+import { CountTo } from "./motion";
 import { Ticker, type TickerItem } from "./ticker";
+import { Radar } from "./radar";
+import { loadRadar } from "../lib/radar";
+import { getDb } from "../lib/server";
 
 export const dynamic = "force-dynamic";
 
 const SUGESTOES = ["iPhone 15", "Air fryer", "PlayStation 5", "Smart TV 50", "Notebook", "Fone JBL"];
 
 export default async function Home() {
-  const [home, drops] = await Promise.all([loadHomeSections(), loadTopDrops(new Date(), 8)]);
+  const radarAt = new Date().toISOString();
+  const [home, drops, radar] = await Promise.all([
+    loadHomeSections(),
+    loadTopDrops(new Date(), 8),
+    loadRadar(getDb(), new Date()).catch((err) => {
+      console.error("falha no radar", err);
+      return [];
+    }),
+  ]);
   const empty = home.total === 0;
   // real drops of the last 24 h first, then the biggest "de/por" discounts
   const ticker: TickerItem[] = [
@@ -82,17 +93,7 @@ export default async function Home() {
         <p className="empty">Ainda estamos juntando os primeiros preços. Busque um produto acima para começar.</p>
       )}
 
-      {home.deals.length > 0 && (
-        <section className="shelf">
-          <header className="shelf-head">
-            <h2>Maiores descontos agora</h2>
-            <a href="/ofertas?ordem=maior-desconto&desconto=1">Ver todos</a>
-          </header>
-          <StaggerGrid className="grid">
-            {home.deals.map((p) => <ProductCard key={p.productId} p={p} />)}
-          </StaggerGrid>
-        </section>
-      )}
+      <Radar initial={radar} initialAt={radarAt} />
 
       <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} />
 

@@ -398,17 +398,18 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 /* ---------- vitrine em profundidade (home) ---------- */
 .depth { display: grid; gap: 14px; margin: 22px 0 6px; }
 @media (min-width: 860px) { .depth { grid-template-columns: minmax(0, 1fr) 340px; align-items: stretch; gap: 20px; } }
-.depth-stage { position: relative; height: clamp(260px, 62vw, 430px); overflow: hidden; border-radius: var(--r-card); touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: grab;
-  background: linear-gradient(transparent 62%, color-mix(in srgb, var(--surface) 70%, transparent) 100%),
-    linear-gradient(90deg, color-mix(in srgb, var(--brand) 10%, var(--surface)) 0%, var(--surface) 55%, color-mix(in srgb, var(--tag) 22%, var(--surface)) 100%);
-  border: 1px solid var(--line); }
+/* the window is always lit, in light and dark mode: product photos blend into a light floor */
+.depth-stage { position: relative; height: clamp(260px, 62vw, 430px); overflow: hidden; border-radius: var(--r-card); touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: grab; color-scheme: light;
+  background: radial-gradient(120% 80% at 70% 100%, #ffffff 0%, transparent 60%),
+    linear-gradient(90deg, #ece6ff 0%, #f8f6ff 50%, #fff6d6 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 18px 50px rgba(var(--shade), 0.18); }
 .depth-stage.dragging { cursor: grabbing; }
 .depth-item { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, filter; display: block; mix-blend-mode: multiply; }
 .depth-item img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-.depth-item::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: -2%; height: 4%; border-radius: 50%; background: radial-gradient(closest-side, rgba(var(--shade), 0.22), transparent); }
+.depth-item::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: -2%; height: 4%; border-radius: 50%; background: radial-gradient(closest-side, rgba(23, 15, 61, 0.22), transparent); }
 .depth-item:focus-visible { outline: 3px solid var(--brand); outline-offset: 6px; border-radius: 12px; }
-.depth-count { position: absolute; left: 16px; bottom: 12px; z-index: 200; display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 38px; color: var(--ink); pointer-events: none; }
-.depth-count > span:last-child { font-size: 16px; color: var(--muted); font-weight: 700; }
+.depth-count { position: absolute; left: 16px; bottom: 12px; z-index: 200; display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 38px; color: #170f3d; pointer-events: none; }
+.depth-count > span:last-child { font-size: 16px; color: #645d8a; font-weight: 700; }
 .depth-win { height: 38px; overflow: hidden; display: block; }
 .depth-roll { display: block; will-change: transform; }
 .depth-roll b { display: block; height: 38px; }
@@ -423,3 +424,14 @@ button.linklike:hover { text-decoration: underline; filter: none; }
 .depth-nav { display: flex; align-items: center; gap: 8px; }
 .depth-nav .car-btn { position: static; display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 859px) { .depth-panel { padding: 14px; } .depth-title { min-height: 0; -webkit-line-clamp: 2; } }
+
+/* ---------- radar de ofertas ---------- */
+.radar-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.radar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: pulse-good 1.8s ease-out infinite; }
+@keyframes pulse-good { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 60%, transparent); } 80%, 100% { box-shadow: 0 0 0 8px transparent; } }
+.radar-next { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(var(--brand) var(--p), color-mix(in srgb, var(--brand) 15%, transparent) 0); }
+.radar-note { margin: -6px 0 12px; }
+.radar-item { position: relative; }
+.radar-rank { position: absolute; z-index: 3; top: 10px; right: 10px; background: var(--ink); color: var(--surface); font-family: var(--display); font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 999px; }
+.radar-new { position: absolute; z-index: 3; top: 40px; right: 10px; background: var(--good); color: #fff; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.radar-item.is-new .pcard { box-shadow: 0 0 0 2px var(--good), 0 12px 28px rgba(var(--shade), 0.14); }

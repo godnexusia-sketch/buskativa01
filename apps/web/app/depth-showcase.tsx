@@ -16,8 +16,8 @@ export interface ShowcaseItem {
 const KX = [1.12, 0.7, 0.5, 0.36, 0.25, 0.16, 0.09]; // centre x
 const KF = [0.98, 0.94, 0.86, 0.8, 0.75, 0.71, 0.68]; // bottom y
 const KH = [0.9, 0.78, 0.58, 0.45, 0.35, 0.27, 0.2]; // size
-const KB = [0, 0, 1.5, 3.5, 6, 9, 12]; // blur px on screen
-const KO = [0, 1, 1, 0.95, 0.8, 0.5, 0]; // opacity
+const KB = [0, 0, 0.8, 1.8, 3, 4.5, 6]; // blur px on screen
+const KO = [0, 1, 1, 1, 0.92, 0.7, 0]; // opacity
 
 const wrap = (x: number, n: number) => ((x % n) + n) % n;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
