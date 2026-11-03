@@ -44,4 +44,18 @@ describe("mercadoLivreConnector", () => {
     await expect(down.search(q, { limit: 5 })).rejects.toBeInstanceOf(ConnectorError);
     await expect(down.search(q, { limit: 5 })).rejects.toMatchObject({ code: "NETWORK" });
   });
+
+  it("requisição que não responde vira TIMEOUT", async () => {
+    let signal: AbortSignal | undefined;
+    const c = mercadoLivreConnector({
+      timeoutMs: 20,
+      fetch: (_url, init) => {
+        signal = init?.signal ?? undefined;
+        // like fetch: rejects only when the signal aborts
+        return new Promise((_, reject) => signal?.addEventListener("abort", () => reject(signal?.reason)));
+      },
+    });
+    await expect(c.search(q, { limit: 10 })).rejects.toMatchObject({ code: "TIMEOUT" });
+    expect(signal?.aborted).toBe(true);
+  });
 });

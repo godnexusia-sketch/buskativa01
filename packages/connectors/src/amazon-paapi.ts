@@ -1,6 +1,7 @@
 import { type Connector, ConnectorError, type Offer } from "@buskativa/core";
 // @ts-expect-error pacote sem tipos
 import amazonPaapi from "amazon-paapi";
+import { withDeadline } from "./deadline";
 
 export interface PaapiItem {
   ASIN: string;
@@ -32,14 +33,17 @@ export function paapiSearchItems(cfg: { accessKey: string; secretKey: string; pa
   };
 }
 
-export function amazonPaapiConnector(opts: { searchItems: SearchItemsFn }): Connector {
+export function amazonPaapiConnector(opts: { searchItems: SearchItemsFn; timeoutMs?: number }): Connector {
+  const timeoutMs = opts.timeoutMs ?? 20000;
   return {
     id: "amazon",
     async search(q, { limit }) {
       let items: PaapiItem[];
       try {
-        items = await opts.searchItems(q.termo, limit);
+        // the PA-API client takes no signal, so the call is only raced, not cancelled
+        items = await withDeadline(() => opts.searchItems(q.termo, limit), timeoutMs);
       } catch (e) {
+        if (e instanceof ConnectorError) throw e;
         const msg = String(e);
         throw new ConnectorError(/429|TooManyRequests|Unauthorized|403/i.test(msg) ? "BLOCKED" : "NETWORK", msg);
       }

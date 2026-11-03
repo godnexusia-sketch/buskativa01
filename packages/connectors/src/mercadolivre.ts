@@ -11,18 +11,24 @@ interface MlResult {
   attributes?: { id: string; value_name: string | null }[];
 }
 
-export function mercadoLivreConnector(opts: { fetch?: typeof fetch; accessToken?: string } = {}): Connector {
+export function mercadoLivreConnector(
+  opts: { fetch?: typeof fetch; accessToken?: string; timeoutMs?: number } = {},
+): Connector {
   const doFetch = opts.fetch ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 20000;
   return {
     id: "mercadolivre",
     async search(q, { limit }) {
       const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q.termo)}&limit=${Math.min(limit, 50)}`;
       const headers: Record<string, string> = opts.accessToken ? { Authorization: `Bearer ${opts.accessToken}` } : {};
+      // also bounds reading the body below
+      const signal = AbortSignal.timeout(timeoutMs);
+      const timedOut = () => new ConnectorError("TIMEOUT", `sem resposta em ${timeoutMs} ms`);
       let res: Response;
       try {
-        res = await doFetch(url, { headers });
+        res = await doFetch(url, { headers, signal });
       } catch (e) {
-        throw new ConnectorError("NETWORK", String(e));
+        throw signal.aborted ? timedOut() : new ConnectorError("NETWORK", String(e));
       }
       if ([401, 403, 429].includes(res.status)) throw new ConnectorError("BLOCKED", `HTTP ${res.status}`);
       if (!res.ok) throw new ConnectorError("NETWORK", `HTTP ${res.status}`);
@@ -30,7 +36,7 @@ export function mercadoLivreConnector(opts: { fetch?: typeof fetch; accessToken?
       try {
         body = (await res.json()) as { results?: MlResult[] };
       } catch (e) {
-        throw new ConnectorError("PARSE", String(e));
+        throw signal.aborted ? timedOut() : new ConnectorError("PARSE", String(e));
       }
       return (body.results ?? []).map(
         (r): Offer => ({

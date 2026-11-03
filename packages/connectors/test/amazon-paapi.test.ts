@@ -35,4 +35,9 @@ describe("amazonPaapiConnector", () => {
       },
     ]);
   });
+
+  it("chamada que não responde vira TIMEOUT", async () => {
+    const c = amazonPaapiConnector({ searchItems: () => new Promise(() => {}), timeoutMs: 20 });
+    await expect(c.search(normalizeQuery("fone"), { limit: 5 })).rejects.toMatchObject({ code: "TIMEOUT" });
+  });
 });

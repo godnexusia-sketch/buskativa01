@@ -1,29 +1,13 @@
-import { type Connector, ConnectorError } from "@buskativa/core";
+import type { Connector } from "@buskativa/core";
 import { fetchRendered } from "./browser";
 import type { BrowserStoreConfig, BrowserStoreId } from "./browser-stores";
+import { withDeadline } from "./deadline";
 import { createLimiter, type Limiter } from "./limiter";
 
 /** Cap for one rendered fetch (30 s navigation + 10 s network idle + margin). */
 export const FETCH_TIMEOUT_MS = 45000;
 
 type FetchHtml = (url: string, signal: AbortSignal) => Promise<string>;
-
-/** Rejects with TIMEOUT after `ms` and aborts the signal so the fetch can stop its own work. */
-async function withDeadline<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
-  const ac = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      ac.abort();
-      reject(new ConnectorError("TIMEOUT", `sem resposta em ${ms} ms`));
-    }, ms);
-  });
-  try {
-    return await Promise.race([work(ac.signal), deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 export function browserConnector(
   id: BrowserStoreId,
