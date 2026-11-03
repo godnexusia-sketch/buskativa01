@@ -1,4 +1,4 @@
-import { type Offer, parseBRL, pickCardPrice, type StoreId } from "@buskativa/core";
+import { detectPagamento, type Offer, parseBRL, pickCardPrices, type StoreId, withOriginalPrice } from "@buskativa/core";
 import * as cheerio from "cheerio";
 import type { Cheerio, CheerioAPI } from "cheerio";
 
@@ -50,6 +50,7 @@ export function parseJsonLd(html: string, store: StoreId, baseUrl: string): Offe
         title: name,
         url,
         price,
+        ...withOriginalPrice(price, offer?.highPrice),
         shipping: null,
         currency: "BRL",
         imageUrl: typeof image === "string" ? abs(image, baseUrl) : undefined,
@@ -89,16 +90,18 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
 
     let card = a.parent();
     for (let i = 0; i < 5 && card.length && parseBRL(spacedText($, card)) === null; i++) card = card.parent();
-    // skips the old "de" price, installments, shipping and cashback amounts
-    const price = pickCardPrice(spacedText($, card));
+    const cardText = spacedText($, card);
+    // skips installments, shipping and cashback amounts; the largest remaining one is the old "de" price
+    const prices = pickCardPrices(cardText);
     const title = (
       a.attr("title") ||
       a.find("img").attr("alt") ||
       card.find("h2, h3").first().text() ||
       a.text()
     ).trim();
-    if (price === null || !title) return;
+    if (prices === null || !title) return;
 
+    const pagamento = detectPagamento(cardText);
     seen.add(externalId);
     const img = card.find("img").first().attr("src");
     offers.push({
@@ -106,11 +109,12 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
       externalId,
       title,
       url,
-      price,
+      price: prices.price,
+      ...(prices.originalPrice !== undefined ? { originalPrice: prices.originalPrice } : {}),
       shipping: null,
       currency: "BRL",
       imageUrl: img ? abs(img, baseUrl) : undefined,
-      attributes: {},
+      attributes: pagamento ? { pagamento } : {},
     });
   });
   return offers;
@@ -128,7 +132,9 @@ export function parseAmazon(html: string, baseUrl: string): Offer[] {
     const card = $(el);
     const asin = card.attr("data-asin");
     const title = card.find("h2 span").first().text().trim();
-    const price = parseBRL(card.find(".a-price .a-offscreen").first().text());
+    // the struck-through "de" price is also an .a-price (with .a-text-price)
+    const price = parseBRL(card.find(".a-price:not(.a-text-price) .a-offscreen").first().text());
+    const original = parseBRL(card.find(".a-text-price .a-offscreen").first().text());
     if (!asin || !title || price === null) return;
     const img = card.find("img.s-image").attr("src");
     offers.push({
@@ -137,6 +143,7 @@ export function parseAmazon(html: string, baseUrl: string): Offer[] {
       title,
       url: abs(`/dp/${asin}`, baseUrl),
       price,
+      ...withOriginalPrice(price, original),
       shipping: null,
       currency: "BRL",
       imageUrl: img,

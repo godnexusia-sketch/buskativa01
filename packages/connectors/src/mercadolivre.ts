@@ -1,10 +1,11 @@
-import { type Connector, ConnectorError, type Offer } from "@buskativa/core";
+import { type Connector, ConnectorError, type Offer, withOriginalPrice } from "@buskativa/core";
 
 interface MlResult {
   id: string;
   title: string;
   permalink: string;
   price: number;
+  original_price?: number | null;
   thumbnail?: string;
   shipping?: { free_shipping?: boolean };
   seller?: { nickname?: string };
@@ -45,6 +46,7 @@ export function mercadoLivreConnector(
           title: r.title,
           url: r.permalink,
           price: r.price,
+          ...withOriginalPrice(r.price, r.original_price),
           shipping: r.shipping?.free_shipping ? 0 : null,
           currency: "BRL",
           imageUrl: r.thumbnail?.replace(/^http:/, "https:"),

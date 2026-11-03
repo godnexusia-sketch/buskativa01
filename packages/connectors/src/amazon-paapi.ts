@@ -1,4 +1,4 @@
-import { type Connector, ConnectorError, type Offer } from "@buskativa/core";
+import { type Connector, ConnectorError, type Offer, withOriginalPrice } from "@buskativa/core";
 // @ts-expect-error pacote sem tipos
 import amazonPaapi from "amazon-paapi";
 import { withDeadline } from "./deadline";
@@ -7,7 +7,7 @@ export interface PaapiItem {
   ASIN: string;
   DetailPageURL: string;
   ItemInfo?: { Title?: { DisplayValue?: string } };
-  Offers?: { Listings?: { Price?: { Amount?: number } }[] };
+  Offers?: { Listings?: { Price?: { Amount?: number }; SavingBasis?: { Amount?: number } }[] };
   Images?: { Primary?: { Medium?: { URL?: string } } };
 }
 export type SearchItemsFn = (keywords: string, count: number) => Promise<PaapiItem[]>;
@@ -26,7 +26,7 @@ export function paapiSearchItems(cfg: { accessKey: string; secretKey: string; pa
         Keywords: keywords,
         SearchIndex: "All",
         ItemCount: Math.min(count, 10),
-        Resources: ["ItemInfo.Title", "Offers.Listings.Price", "Images.Primary.Medium"],
+        Resources: ["ItemInfo.Title", "Offers.Listings.Price", "Offers.Listings.SavingBasis", "Images.Primary.Medium"],
       },
     );
     return (res?.SearchResult?.Items ?? []) as PaapiItem[];
@@ -48,7 +48,8 @@ export function amazonPaapiConnector(opts: { searchItems: SearchItemsFn; timeout
         throw new ConnectorError(/429|TooManyRequests|Unauthorized|403/i.test(msg) ? "BLOCKED" : "NETWORK", msg);
       }
       return items.flatMap((it): Offer[] => {
-        const price = it.Offers?.Listings?.[0]?.Price?.Amount;
+        const listing = it.Offers?.Listings?.[0];
+        const price = listing?.Price?.Amount;
         const title = it.ItemInfo?.Title?.DisplayValue;
         if (price === undefined || !title) return [];
         return [
@@ -58,6 +59,7 @@ export function amazonPaapiConnector(opts: { searchItems: SearchItemsFn; timeout
             title,
             url: it.DetailPageURL,
             price,
+            ...withOriginalPrice(price, listing?.SavingBasis?.Amount),
             shipping: null,
             currency: "BRL",
             imageUrl: it.Images?.Primary?.Medium?.URL,

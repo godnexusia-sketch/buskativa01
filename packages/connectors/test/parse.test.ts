@@ -69,3 +69,72 @@ describe("parseGeneric", () => {
     expect(parseGeneric(fx("anchors-magalu.html"), cfg)).toHaveLength(2);
   });
 });
+
+describe("preço original e forma de pagamento", () => {
+  const amazonCard = (prices: string) =>
+    `<div data-component-type="s-search-result" data-asin="B0X"><h2><span>Fone X</span></h2>${prices}</div>`;
+
+  it("parseAmazon lê o preço riscado como originalPrice quando é maior", () => {
+    const html = amazonCard(
+      '<span class="a-price a-text-price"><span class="a-offscreen">R$ 349,90</span></span>' +
+        '<span class="a-price"><span class="a-offscreen">R$ 249,90</span></span>',
+    );
+    const [o] = parseAmazon(html, "https://www.amazon.com.br/");
+    expect(o.price).toBe(249.9);
+    expect(o.originalPrice).toBe(349.9);
+  });
+
+  it("parseAmazon ignora preço riscado menor ou igual e card sem riscado", () => {
+    const menor = amazonCard(
+      '<span class="a-price a-text-price"><span class="a-offscreen">R$ 200,00</span></span>' +
+        '<span class="a-price"><span class="a-offscreen">R$ 249,90</span></span>',
+    );
+    expect(parseAmazon(menor, "https://www.amazon.com.br/")[0].originalPrice).toBeUndefined();
+    const [sem] = parseAmazon(fx("amazon-search.html"), "https://www.amazon.com.br/");
+    expect("originalPrice" in sem).toBe(false);
+  });
+
+  const jsonLd = (offers: unknown) =>
+    `<script type="application/ld+json">${JSON.stringify({
+      "@type": "Product",
+      name: "Air Fryer",
+      url: "/p/af/",
+      sku: "AF",
+      offers,
+    })}</script>`;
+
+  it("parseJsonLd usa highPrice como originalPrice quando é maior que o preço", () => {
+    const [o] = parseJsonLd(jsonLd({ "@type": "AggregateOffer", price: 299.9, highPrice: 399.9 }), "magalu", "https://m.com.br/");
+    expect(o.price).toBe(299.9);
+    expect(o.originalPrice).toBe(399.9);
+  });
+
+  it("parseJsonLd ignora highPrice menor ou igual ao preço (e lowPrice como preço)", () => {
+    const [a] = parseJsonLd(jsonLd({ price: 299.9, highPrice: 299.9 }), "magalu", "https://m.com.br/");
+    expect(a.originalPrice).toBeUndefined();
+    const [b] = parseJsonLd(jsonLd({ lowPrice: 299.9, highPrice: 349 }), "magalu", "https://m.com.br/");
+    expect(b.originalPrice).toBe(349);
+  });
+
+  const card = (text: string) =>
+    `<div><a href="/x/p/aaa111/" title="Fone X">Fone</a><span>${text.split("|").join("</span><span>")}</span></div>`;
+  const anchors = (text: string) =>
+    parseAnchors(card(text), "magalu", "https://www.magazineluiza.com.br/", /\/p\/([a-z0-9]+)\//i)[0];
+
+  it("parseAnchors devolve o maior candidato como originalPrice", () => {
+    const o = anchors("R$ 399,00|R$ 279,90|10x de R$ 27,99|Frete R$ 9,90");
+    expect(o.price).toBe(279.9);
+    expect(o.originalPrice).toBe(399);
+  });
+
+  it("parseAnchors não inventa originalPrice sem candidato maior", () => {
+    const o = anchors("R$ 279,90|10x de R$ 27,99");
+    expect("originalPrice" in o).toBe(false);
+  });
+
+  it("parseAnchors marca pagamento app ou pix", () => {
+    expect(anchors("R$ 399,00|R$ 279,90 no app").attributes.pagamento).toBe("app");
+    expect(anchors("R$ 399,00|R$ 279,90 à vista no Pix").attributes.pagamento).toBe("pix");
+    expect(anchors("R$ 279,90").attributes.pagamento).toBeUndefined();
+  });
+});
