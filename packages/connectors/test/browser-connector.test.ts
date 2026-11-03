@@ -22,6 +22,32 @@ describe("browserConnector", () => {
     expect(requested).toBe("https://www.amazon.com.br/s?k=fone+bluetooth");
     expect(offers).toHaveLength(1);
   });
+
+  it("o prazo por busca não conta a espera na fila do limitador", async () => {
+    const c = browserConnector("amazon", BROWSER_STORES.amazon, {
+      fetchHtml: () => new Promise((r) => setTimeout(() => r(html), 80)),
+      limiter: createLimiter(1, 0),
+      fetchTimeoutMs: 150,
+    });
+    const q = normalizeQuery("fone");
+    // juntas levam ~160 ms (> 150), mas cada busca leva só ~80 ms
+    const results = await Promise.all([c.search(q, { limit: 5 }), c.search(q, { limit: 5 })]);
+    expect(results.map((r) => r.length)).toEqual([2, 2]);
+  });
+
+  it("busca lenta demais vira TIMEOUT e recebe o sinal de cancelamento", async () => {
+    let signal: AbortSignal | undefined;
+    const c = browserConnector("amazon", BROWSER_STORES.amazon, {
+      fetchHtml: (_url, s) => {
+        signal = s;
+        return new Promise(() => {});
+      },
+      limiter: createLimiter(1, 0),
+      fetchTimeoutMs: 30,
+    });
+    await expect(c.search(normalizeQuery("fone"), { limit: 5 })).rejects.toMatchObject({ code: "TIMEOUT" });
+    expect(signal?.aborted).toBe(true);
+  });
 });
 
 describe("createConnectors", () => {

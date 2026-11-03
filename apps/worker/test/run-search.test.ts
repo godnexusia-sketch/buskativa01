@@ -2,7 +2,7 @@ import { type Connector, ConnectorError, type Offer } from "@buskativa/core";
 import { getRunWithResults } from "@buskativa/db";
 import { createTestDb } from "@buskativa/db/testing";
 import { describe, expect, it } from "vitest";
-import { runConnector, runSearch } from "../src/run-search";
+import { attemptTimeoutMs, runConnector, runSearch } from "../src/run-search";
 
 const offer = (over: Partial<Offer>): Offer => ({
   store: "mercadolivre",
@@ -47,6 +47,15 @@ describe("runConnector", () => {
     await expect(runConnector(slow, {} as never, 10, { retries: 1, timeoutMs: 20 })).rejects.toMatchObject({
       code: "TIMEOUT",
     });
+  });
+});
+
+describe("attemptTimeoutMs", () => {
+  it("cobre a fila do limitador: uma busca própria mais (concorrência - 1) à frente", () => {
+    const perFetchWithGap = 45000 + 5000;
+    expect(attemptTimeoutMs(1)).toBeGreaterThan(perFetchWithGap);
+    expect(attemptTimeoutMs(3)).toBeGreaterThan(3 * perFetchWithGap);
+    expect(attemptTimeoutMs(6)).toBeGreaterThan(6 * perFetchWithGap);
   });
 });
 

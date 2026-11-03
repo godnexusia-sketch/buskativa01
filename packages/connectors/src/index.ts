@@ -6,6 +6,7 @@ import { demoConnectors } from "./demo";
 import { mercadoLivreConnector } from "./mercadolivre";
 
 export { closeBrowser } from "./browser";
+export { FETCH_TIMEOUT_MS } from "./browser-connector";
 export { demoConnectors } from "./demo";
 
 export function createConnectors(env: Record<string, string | undefined>): Connector[] {

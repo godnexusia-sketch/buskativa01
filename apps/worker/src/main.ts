@@ -4,7 +4,7 @@ import { createDb, listWatchedQueries, migrateDb } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
 import pino from "pino";
-import { runSearch } from "./run-search";
+import { attemptTimeoutMs, runSearch } from "./run-search";
 import { dueQueries, pickStartupQueries } from "./scheduler";
 
 const log = pino({ name: "buskativa-worker" });
@@ -19,14 +19,16 @@ const connectors = createConnectors(env);
 const queue = createSearchQueue(connection);
 const baseMin = Number(env.SEARCH_INTERVAL_MIN ?? 60);
 const fastMin = Number(env.SEARCH_FAST_INTERVAL_MIN ?? 30);
+const concurrency = Number(env.WORKER_CONCURRENCY ?? 3);
+const searchDeps = { db, connectors, attemptTimeoutMs: attemptTimeoutMs(concurrency) };
 
 const worker = new Worker<SearchJob>(
   QUEUE_NAME,
   async (job) => {
-    const runId = await runSearch({ db, connectors }, job.data.text, job.data.runId);
+    const runId = await runSearch(searchDeps, job.data.text, job.data.runId);
     log.info({ runId, text: job.data.text }, "busca concluída");
   },
-  { connection, concurrency: Number(env.WORKER_CONCURRENCY ?? 3) },
+  { connection, concurrency },
 );
 worker.on("failed", (job, err) => log.error({ err, text: job?.data.text }, "job falhou"));
 
