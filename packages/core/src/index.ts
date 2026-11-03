@@ -7,3 +7,4 @@ export * from "./query";
 export * from "./offers";
 export * from "./stats";
 export * from "./discount";
+export * from "./coupons";

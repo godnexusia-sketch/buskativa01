@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./stores": "./src/stores.ts",
-    "./discount": "./src/discount.ts"
+    "./discount": "./src/discount.ts",
+    "./coupons": "./src/coupons.ts"
   },
   "scripts": { "typecheck": "tsc --noEmit -p ." }
 }
