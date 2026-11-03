@@ -1,37 +1,96 @@
+import { CATEGORIES } from "@buskativa/core/categories";
+import { STORE_IDS } from "@buskativa/core";
 import { STORES } from "@buskativa/core/stores";
 import { formatBRL } from "../lib/format";
-import { loadTopDrops } from "../lib/home";
+import { loadHomeSections, loadTopDrops } from "../lib/home";
 import { AdSlot } from "./ad-slot";
+import { CategoryNav } from "./category-nav";
+import { ProductCard } from "./product-card";
 
 export const dynamic = "force-dynamic";
 
+const SUGESTOES = ["iPhone 15", "Air fryer", "PlayStation 5", "Smart TV 50", "Notebook", "Fone JBL"];
+
 export default async function Home() {
-  const drops = await loadTopDrops(new Date(), 12);
+  const [home, drops] = await Promise.all([loadHomeSections(), loadTopDrops(new Date(), 8)]);
+  const empty = home.total === 0;
+
   return (
     <>
-      <h1>O menor preço, agora.</h1>
-      <p className="muted">Pesquisamos Mercado Livre, Amazon, Magalu, Shopee, AliExpress e TikTok Shop 24 horas por dia.</p>
-      <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} />
-      <h2>Maiores quedas nas últimas 24h</h2>
-      {drops.length === 0 ? (
-        <p className="muted">Ainda juntando histórico. Faça uma busca acima.</p>
-      ) : (
-        <div className="list">
-          {drops.map((d) => (
-            <a key={d.productId} className="card" href={`/produto/${d.productId}`} style={{ textDecoration: "none" }}>
-              {d.imageUrl && <img src={d.imageUrl} alt="" />}
-              <div className="info">
-                <div className="title">{d.title}</div>
-                <div className="muted">{STORES[d.store].name} · era {formatBRL(d.prevAvgCents)} em média</div>
-              </div>
-              <div>
-                <div className="price">{formatBRL(d.nowCents)}</div>
-                <div className="muted">−{Math.round(d.drop * 100)}%</div>
-              </div>
-            </a>
-          ))}
+      <section className="hero">
+        <div className="hero-copy">
+          <h1>O menor preço de cada produto, lado a lado.</h1>
+          <p>
+            {empty
+              ? "Comparamos lojas e guardamos o histórico de preço de cada produto."
+              : `${home.total.toLocaleString("pt-BR")} produtos acompanhados em ${STORE_IDS.length} lojas, com histórico de preço e cupons.`}
+          </p>
+          <div className="hero-suggest" aria-label="Buscas populares">
+            {SUGESTOES.map((s) => (
+              <a key={s} href={`/busca?q=${encodeURIComponent(s)}`}>{s}</a>
+            ))}
+          </div>
         </div>
+        <ul className="hero-stores" aria-label="Lojas comparadas">
+          {STORE_IDS.map((id) => <li key={id}>{STORES[id].name}</li>)}
+        </ul>
+      </section>
+
+      <CategoryNav counts={home.counts} />
+
+      {empty && (
+        <p className="empty">Ainda estamos juntando os primeiros preços. Busque um produto acima para começar.</p>
       )}
+
+      {home.deals.length > 0 && (
+        <section className="shelf">
+          <header className="shelf-head">
+            <h2>Maiores descontos agora</h2>
+            <a href="/ofertas?ordem=maior-desconto&desconto=1">Ver todos</a>
+          </header>
+          <div className="grid">
+            {home.deals.map((p) => <ProductCard key={p.productId} p={p} />)}
+          </div>
+        </section>
+      )}
+
+      <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME} />
+
+      {drops.length > 0 && (
+        <section className="shelf">
+          <header className="shelf-head">
+            <h2>Caíram de preço nas últimas 24 horas</h2>
+          </header>
+          <ol className="drops">
+            {drops.map((d) => (
+              <li key={d.productId}>
+                <a href={`/produto/${d.productId}`}>
+                  {d.imageUrl ? <img src={d.imageUrl} alt="" loading="lazy" /> : <span className="pcard-noimg" />}
+                  <span className="drops-title">{d.title}</span>
+                  <span className="drops-store">{STORES[d.store].name}</span>
+                  <span className="drops-price">
+                    <strong>{formatBRL(d.nowCents)}</strong>
+                    <span className="drops-pct">−{Math.round(d.drop * 100)}%</span>
+                  </span>
+                  <span className="drops-was">média anterior {formatBRL(d.prevAvgCents)}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {home.rails.map((r) => (
+        <section key={r.category} className="shelf">
+          <header className="shelf-head">
+            <h2>{CATEGORIES[r.category].name}</h2>
+            <a href={`/ofertas?categoria=${r.category}`}>Ver tudo</a>
+          </header>
+          <div className="rail">
+            {r.items.map((p) => <ProductCard key={p.productId} p={p} />)}
+          </div>
+        </section>
+      ))}
     </>
   );
 }

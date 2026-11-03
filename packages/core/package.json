@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./stores": "./src/stores.ts",
     "./discount": "./src/discount.ts",
-    "./coupons": "./src/coupons.ts"
+    "./coupons": "./src/coupons.ts",
+    "./categories": "./src/categories.ts"
   },
   "scripts": { "typecheck": "tsc --noEmit -p ." }
 }

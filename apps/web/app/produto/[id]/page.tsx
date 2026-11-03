@@ -14,6 +14,8 @@ import { searchResults } from "../../../lib/search-service";
 import { getDb } from "../../../lib/server";
 import { PriceBadges } from "../../price-badges";
 import { PriceChart } from "./price-chart";
+import { buyVerdict, highestPoint } from "../../../lib/verdict";
+import { CATEGORIES } from "@buskativa/core/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -75,85 +77,113 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
     priceCents: stats ? Math.round(stats.current * 100) : null,
   });
 
+  const current = stats ? Math.round(stats.current * 100) : null;
+  const top = highestPoint(points);
+  const verdict = buyVerdict(points, stats);
+  const category = product.category && product.category !== "outros" ? product.category : null;
+  const comparison = [...others].sort((a, b) => a.totalCents - b.totalCents);
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(ld) }} />
-      <div className="card">
-        {product.imageUrl && <img src={product.imageUrl} alt="" />}
-        <div className="info">
-          <h1 style={{ fontSize: 20, margin: 0 }}>{product.title}</h1>
-          <div className="muted">{STORES[product.store].name}</div>
-          {stats && (
-            <PriceBadges priceCents={Math.round(stats.current * 100)} originalPriceCents={originalCents} pagamento={pagamento} />
-          )}
-          {belowAvg && (
-            <div className="badges">
-              <span className="badge below">Abaixo da média de 30 dias</span>
+      <nav className="crumbs" aria-label="Você está em">
+        <a href="/">Início</a>
+        <a href="/ofertas">Ofertas</a>
+        {category && <a href={`/ofertas?categoria=${category}`}>{CATEGORIES[category].name}</a>}
+      </nav>
+
+      <section className="pdp">
+        <div className="pdp-media">
+          {product.imageUrl ? <img src={product.imageUrl} alt={product.title} /> : <span className="pcard-noimg" />}
+        </div>
+        <div className="pdp-info">
+          <span className="pcard-store">{STORES[product.store].name}</span>
+          <h1>{product.title}</h1>
+          {current !== null && (
+            <div className="pdp-price">
+              <span className="price">{formatBRL(current)}</span>
+              <PriceBadges priceCents={current} originalPriceCents={originalCents} pagamento={pagamento} />
+              {belowAvg && (
+                <div className="badges"><span className="badge below">Abaixo da média de 30 dias</span></div>
+              )}
             </div>
           )}
+          <div className={`verdict ${verdict.kind}`} role="status">
+            <strong>{verdict.title}</strong>
+            <span>{verdict.detail}</span>
+          </div>
+          <a className="btn btn-big" href={`/ir/${product.id}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
+          <p className="muted small">O preço pode mudar na loja. Conferimos de novo a cada hora.</p>
         </div>
-        {stats && <div className="price">{formatBRL(Math.round(stats.current * 100))}</div>}
-        <a className="btn" href={`/ir/${product.id}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
-      </div>
+      </section>
 
       {stats && (
-        <div className="stats">
-          <div className="card">
-            <span className="muted">Menor preço</span>
-            <span className="price">{formatBRL(Math.round(stats.lowest.price * 100))}</span>
-            <span className="muted">em {formatDateTime(stats.lowest.observedAt)}</span>
+        <section className="facts" aria-label="Resumo do preço">
+          <div className="fact">
+            <span className="fact-label">Menor preço</span>
+            <strong className="fact-value good">{formatBRL(Math.round(stats.lowest.price * 100))}</strong>
+            <span className="fact-sub">em {formatDateTime(stats.lowest.observedAt)}</span>
           </div>
-          <div className="card">
-            <span className="muted">Melhor dia</span>
-            <strong>{WEEKDAYS[stats.bestWeekday]}</strong>
-            <span className="muted">Melhor horário: {hourBlockLabel(stats.bestHourBlock)}</span>
-          </div>
-          <div className="card">
-            <span className="muted">Próxima queda provável</span>
-            <strong>{formatDateTime(stats.nextLowWindow)}</strong>
-            <span className="muted">Estimativa, {CONFIDENCE_LABEL[stats.confidence]}</span>
-          </div>
-          <div className="card">
-            <span className="muted">Média 30 dias</span>
-            <strong>{formatBRL(Math.round(stats.avg30d * 100))}</strong>
-            <span className="muted">
-              Agora está {Math.abs(Math.round(stats.changeVsAvg30d * 100))}% {stats.changeVsAvg30d <= 0 ? "abaixo" : "acima"} da média
+          {top && top.price !== stats.lowest.price && (
+            <div className="fact">
+              <span className="fact-label">Maior preço</span>
+              <strong className="fact-value bad">{formatBRL(Math.round(top.price * 100))}</strong>
+              <span className="fact-sub">em {formatDateTime(top.observedAt)}</span>
+            </div>
+          )}
+          <div className="fact">
+            <span className="fact-label">Média 30 dias</span>
+            <strong className="fact-value">{formatBRL(Math.round(stats.avg30d * 100))}</strong>
+            <span className="fact-sub">
+              Agora {Math.abs(Math.round(stats.changeVsAvg30d * 100))}% {stats.changeVsAvg30d <= 0 ? "abaixo" : "acima"}
             </span>
           </div>
-        </div>
+          <div className="fact">
+            <span className="fact-label">Próxima queda provável</span>
+            <strong className="fact-value">{formatDateTime(stats.nextLowWindow)}</strong>
+            <span className="fact-sub">
+              Costuma baixar {WEEKDAYS[stats.bestWeekday]}, {hourBlockLabel(stats.bestHourBlock)}. Estimativa, {CONFIDENCE_LABEL[stats.confidence]}
+            </span>
+          </div>
+        </section>
+      )}
+
+      <section className="panel">
+        <h2>Histórico de preço</h2>
+        <PriceChart
+          points={points.map((p) => ({ price: p.price, observedAt: p.observedAt.toISOString() }))}
+          avg={stats ? stats.avg30d : undefined}
+        />
+      </section>
+
+      {comparison.length > 0 && (
+        <section className="panel">
+          <h2>Mesmo produto em outras lojas</h2>
+          <ol className="compare">
+            {comparison.map((r, i) => (
+              <li key={r.productId}>
+                <div className="compare-info">
+                  <span className="pcard-store">{STORES[r.store].name}{i === 0 && current !== null && r.totalCents < current ? " · mais barato" : ""}</span>
+                  <a className="title" href={`/produto/${r.productId}`}>{r.title}</a>
+                  <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
+                </div>
+                <span className="price">{formatBRL(r.totalCents)}</span>
+                <a className="btn btn-store" href={`/ir/${r.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
 
       <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT} />
 
       {coupons.length > 0 && (
-        <>
+        <section className="panel">
           <h2>Cupons para {STORES[product.store].name}</h2>
           <div className="list">
             {coupons.map((c) => <CouponCard key={c.id} coupon={c} showStore={false} />)}
           </div>
-        </>
-      )}
-
-      <h2>Histórico de preço</h2>
-      <PriceChart points={points.map((p) => ({ price: p.price, observedAt: p.observedAt.toISOString() }))} />
-
-      {others.length > 0 && (
-        <>
-          <h2>Mesmo produto em outras lojas</h2>
-          <div className="list">
-            {others.map((r) => (
-              <div key={r.productId} className="card">
-                <div className="info">
-                  <a className="title" href={`/produto/${r.productId}`}>{r.title}</a>
-                  <div className="muted">{STORES[r.store].name}</div>
-                  <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
-                </div>
-                <div className="price">{formatBRL(r.totalCents)}</div>
-                <a className="btn" href={`/ir/${r.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
-              </div>
-            ))}
-          </div>
-        </>
+        </section>
       )}
     </>
   );

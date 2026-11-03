@@ -1,4 +1,4 @@
-import type { CouponSource, DiscountType, NormalizedQuery, StoreId, StoreStatus } from "@buskativa/core";
+import type { CategoryId, CouponSource, DiscountType, NormalizedQuery, StoreId, StoreStatus } from "@buskativa/core";
 import {
   boolean, index, integer, jsonb, pgTable, real, serial, text, timestamp, uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -27,8 +27,10 @@ export const products = pgTable(
     attributes: jsonb("attributes").$type<Record<string, string>>().notNull().default({}),
     sellerName: text("seller_name"),
     sellerRating: real("seller_rating"),
+    // guessed from the title (core categorize); null only on rows saved before the column existed
+    category: text("category").$type<CategoryId>(),
   },
-  (t) => [uniqueIndex("products_store_external").on(t.store, t.externalId)],
+  (t) => [uniqueIndex("products_store_external").on(t.store, t.externalId), index("products_category").on(t.category)],
 );
 
 export const priceObservations = pgTable(

@@ -8,3 +8,4 @@ export * from "./offers";
 export * from "./stats";
 export * from "./discount";
 export * from "./coupons";
+export * from "./categories";

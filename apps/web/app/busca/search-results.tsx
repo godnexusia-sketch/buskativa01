@@ -4,27 +4,23 @@ import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
 import { applyOfferView, parseReais, type OfferOrder } from "../../lib/offer-filters";
 import { AdSlot } from "../ad-slot";
-import { PriceBadges } from "../price-badges";
+import { ProductCard } from "../product-card";
 import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
 
 const ERRO_PADRAO = "Não foi possível buscar agora. Tente de novo em instantes.";
 
 function Offer({ r }: { r: SearchResultItem }) {
+  return <ProductCard p={r} />;
+}
+
+function Similar({ r }: { r: SearchResultItem }) {
   return (
-    <div className="card" data-testid="offer">
-      {r.imageUrl && <img src={r.imageUrl} alt="" />}
-      <div className="info">
-        <a className="title" href={`/produto/${r.productId}`}>{r.title}</a>
-        <div className="muted">
-          {STORES[r.store].name} ·{" "}
-          {r.shippingCents === null ? "frete a calcular" : r.shippingCents === 0 ? "frete grátis" : `frete ${formatBRL(r.shippingCents)}`}
-        </div>
-        <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
-      </div>
-      <div className="price">{formatBRL(r.totalCents)}</div>
-      <a className="btn" href={`/ir/${r.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
-    </div>
+    <li>
+      <a href={`/produto/${r.productId}`}>{r.title}</a>
+      <span className="muted">{STORES[r.store].name}</span>
+      <strong>{formatBRL(r.totalCents)}</strong>
+    </li>
   );
 }
 
@@ -94,7 +90,7 @@ export function SearchResults({ q }: { q: string }) {
   }, [q]);
 
   if (error) return <p className="chip fail">{error}</p>;
-  if (!data) return <p className="muted">Procurando nas lojas…</p>;
+  if (!data) return <div className="grid">{Array.from({ length: 8 }, (_, i) => <div key={i} className="pcard skeleton" aria-hidden="true" />)}</div>;
 
   const minCents = parseReais(min);
   const maxCents = parseReais(max);
@@ -121,7 +117,7 @@ export function SearchResults({ q }: { q: string }) {
       </div>
       {data.results.length === 0 && data.status === "done" && <p>Nenhuma oferta encontrada.</p>}
       {data.results.length > 0 && (
-        <div className="filters" role="group" aria-label="Filtros e ordenação">
+        <div className="filters filters-bar" role="group" aria-label="Filtros e ordenação">
           <label>Loja
             <select value={store} onChange={(e) => setStore(e.target.value)}>
               <option value="">Todas as lojas</option>
@@ -149,22 +145,22 @@ export function SearchResults({ q }: { q: string }) {
         </p>
       )}
       {data.results.length > 0 && view.offers === 0 && <p>Nenhuma oferta com esses filtros.</p>}
-      <div className="list">
+      <div className="grid">
         {view.groups.flatMap((items, i) => {
           const node =
             items.length === 1 ? (
               <Offer key={items[0].productId} r={items[0]} />
             ) : (
-              <div key={items[0].productId}>
+              <div key={items[0].productId} className="group">
                 <Offer r={items[0]} />
-                <details>
-                  <summary className="muted">+{items.length - 1} ofertas parecidas</summary>
-                  <div className="list">{items.slice(1).map((r) => <Offer key={r.productId} r={r} />)}</div>
+                <details className="similar">
+                  <summary>+{items.length - 1} ofertas parecidas</summary>
+                  <ul>{items.slice(1).map((r) => <Similar key={r.productId} r={r} />)}</ul>
                 </details>
               </div>
             );
           // um anúncio depois do 6º card de resultado
-          return i === 5 ? [node, <AdSlot key="ad-results" slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_RESULTS} />] : [node];
+          return i === 5 ? [node, <div key="ad-results" className="grid-wide"><AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_RESULTS} /></div>] : [node];
         })}
       </div>
     </>

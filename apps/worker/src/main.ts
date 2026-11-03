@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { browserMaxContexts, closeBrowser, createConnectors } from "@buskativa/connectors";
-import { createDb, listWatchedQueries, migrateDb, purgeExpiredData } from "@buskativa/db";
+import { backfillCategories, createDb, listWatchedQueries, migrateDb, purgeExpiredData } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
 import pino from "pino";
@@ -15,6 +15,7 @@ if (!env.DATABASE_URL || !env.REDIS_URL) throw new Error("DATABASE_URL e REDIS_U
 
 const { db, pool } = createDb(env.DATABASE_URL);
 await migrateDb(db);
+const categorized = await backfillCategories(db);
 
 const connection = redisConnection(env.REDIS_URL);
 const connectors = createConnectors(env);
@@ -60,10 +61,10 @@ if (env.PORT) {
 }
 
 const trending: string[] = JSON.parse(readFileSync(new URL("../seed/trending.json", import.meta.url), "utf8"));
-const watched = (await listWatchedQueries(db, 20)).map((q) => q.original);
-const startup = pickStartupQueries(watched, trending, 20);
+const watched = (await listWatchedQueries(db, 80)).map((q) => q.original);
+const startup = pickStartupQueries(watched, trending, 80);
 for (const text of startup) await enqueueSearch(queue, { text });
-log.info({ count: startup.length, stores: connectors.map((c) => c.id) }, "worker ativo: buscas iniciais enfileiradas");
+log.info({ count: startup.length, categorized, stores: connectors.map((c) => c.id) }, "worker ativo: buscas iniciais enfileiradas");
 
 async function tick() {
   const due = await dueQueries(db, new Date(), { baseMin, fastMin });

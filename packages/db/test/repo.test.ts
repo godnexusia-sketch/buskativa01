@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
-  createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
+  backfillCategories, categoryCounts, createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
   latestRunIdForProduct, listProducts, purgeExpiredData, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
@@ -357,5 +357,27 @@ describe("listProducts", { timeout: 90000 }, () => {
 
   it("banco vazio devolve lista vazia", async () => {
     expect(await listProducts(db, base)).toEqual({ items: [], total: 0 });
+  });
+
+  it("filtra por categoria (deduzida do título) e por só com desconto", async () => {
+    const q = await upsertQuery(db, nq);
+    const r = await createRun(db, q.id);
+    await saveOffers(db, r, [
+      offer({ externalId: "T", title: "Smart TV 50 Polegadas", price: 2000, originalPrice: 2500 }),
+      offer({ externalId: "F", title: "Fone JBL Tune", price: 200 }),
+      offer({ externalId: "G", title: "Fone Sony WH", price: 300, originalPrice: 400 }),
+    ]);
+    expect(titles(await listProducts(db, { ...base, category: "audio" }))).toEqual(["Fone JBL Tune", "Fone Sony WH"]);
+    expect(titles(await listProducts(db, { ...base, category: "audio", onlyDiscount: true }))).toEqual(["Fone Sony WH"]);
+    expect(await categoryCounts(db)).toEqual({ audio: 2, tvs: 1 });
+  });
+
+  it("backfillCategories preenche só quem está sem categoria", async () => {
+    const q = await upsertQuery(db, nq);
+    await saveOffers(db, await createRun(db, q.id), [offer({ externalId: "N", title: "Notebook Dell" })]);
+    await db.execute(sql`update products set category = null`);
+    expect(await backfillCategories(db, 1)).toBe(1);
+    expect(await categoryCounts(db)).toEqual({ notebooks: 1 });
+    expect(await backfillCategories(db)).toBe(0);
   });
 });

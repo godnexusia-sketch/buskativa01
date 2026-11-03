@@ -1,4 +1,4 @@
-import { COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
+import { categorize, type CategoryId, COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
 import { and, desc, eq, getTableColumns, gt, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
 import { clicks, couponVotes, coupons, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
@@ -32,6 +32,7 @@ export async function saveOffers(db: Db, runId: number, offers: Offer[], observe
       attributes: o.attributes,
       sellerName: o.sellerName ?? null,
       sellerRating: o.sellerRating ?? null,
+      category: categorize(o.title),
     };
     const [p] = await db
       .insert(products)
@@ -368,6 +369,9 @@ export type ProductOrder = (typeof PRODUCT_ORDERS)[number];
 
 export interface ListProductsOptions {
   store?: StoreId;
+  category?: CategoryId;
+  /** only products whose latest price is below its "de" price */
+  onlyDiscount?: boolean;
   minCents?: number;
   maxCents?: number;
   order: ProductOrder;
@@ -437,8 +441,30 @@ export function listProductsSql(o: ListProductsOptions): SQL {
         ) l on true
         where true
           ${o.store ? sql`and p.store = ${o.store}` : sql``}
+          ${o.category ? sql`and p.category = ${o.category}` : sql``}
+          ${o.onlyDiscount ? sql`and l.original_price_cents > l.price_cents` : sql``}
           ${o.minCents !== undefined ? sql`and ${total} >= ${o.minCents}` : sql``}
           ${o.maxCents !== undefined ? sql`and ${total} <= ${o.maxCents}` : sql``}
         order by ${orderBy}
         limit ${o.limit} offset ${o.offset}`;
+}
+
+/** Number of products per category (for the category menu); categories without products are left out. */
+export async function categoryCounts(db: Db): Promise<Partial<Record<CategoryId, number>>> {
+  const found = await rows<{ category: CategoryId; n: number | string }>(
+    db,
+    sql`select category, count(*) as n from products where category is not null group by category`,
+  );
+  return Object.fromEntries(found.map((r) => [r.category, Number(r.n)]));
+}
+
+/** Fills category for rows saved before the column existed; returns how many were updated. */
+export async function backfillCategories(db: Db, batch = 500): Promise<number> {
+  let updated = 0;
+  for (;;) {
+    const todo = await db.select({ id: products.id, title: products.title }).from(products).where(isNull(products.category)).limit(batch);
+    if (todo.length === 0) return updated;
+    for (const r of todo) await db.update(products).set({ category: categorize(r.title) }).where(eq(products.id, r.id));
+    updated += todo.length;
+  }
 }

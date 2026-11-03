@@ -1,82 +1,115 @@
 import { STORE_IDS } from "@buskativa/core";
+import { CATEGORIES } from "@buskativa/core/categories";
 import { STORES } from "@buskativa/core/stores";
-import { listProducts, PRODUCT_ORDERS } from "@buskativa/db";
-import { formatBRL } from "../../lib/format";
+import { categoryCounts, listProducts, PRODUCT_ORDERS } from "@buskativa/db";
+import type { Metadata } from "next";
 import { formatReais } from "../../lib/offer-filters";
 import { OFERTAS_PAGE_SIZE, ofertasHref, parseOfertasParams, type OfertasParams } from "../../lib/ofertas-params";
 import { getDb } from "../../lib/server";
-import { PriceBadges } from "../price-badges";
+import { CategoryNav } from "../category-nav";
+import { ProductCard } from "../product-card";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Todas as ofertas" };
+
+type Search = Promise<Record<string, string | string[] | undefined>>;
+
+export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
+  const p = parseOfertasParams(await searchParams);
+  return { title: p.categoria ? `${CATEGORIES[p.categoria].name}: menores preços` : "Todas as ofertas" };
+}
 
 const ORDEM_LABEL = { "menor-preco": "Menor preço", "maior-desconto": "Maior desconto", recentes: "Atualizados recentemente" } as const;
 
-export default async function OfertasPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function OfertasPage({ searchParams }: { searchParams: Search }) {
   const p = parseOfertasParams(await searchParams);
-  const { items, total } = await listProducts(getDb(), {
-    store: p.loja ?? undefined,
-    minCents: p.minCents,
-    maxCents: p.maxCents,
-    order: p.ordem,
-    limit: OFERTAS_PAGE_SIZE,
-    offset: (p.pagina - 1) * OFERTAS_PAGE_SIZE,
-  });
+  const db = getDb();
+  const [{ items, total }, counts] = await Promise.all([
+    listProducts(db, {
+      store: p.loja ?? undefined,
+      category: p.categoria ?? undefined,
+      onlyDiscount: p.desconto,
+      minCents: p.minCents,
+      maxCents: p.maxCents,
+      order: p.ordem,
+      limit: OFERTAS_PAGE_SIZE,
+      offset: (p.pagina - 1) * OFERTAS_PAGE_SIZE,
+    }),
+    categoryCounts(db),
+  ]);
   const pages = Math.max(1, Math.ceil(total / OFERTAS_PAGE_SIZE));
   const link = (over: Partial<OfertasParams>) => ofertasHref({ ...p, pagina: 1, ...over });
+  const heading = p.categoria ? CATEGORIES[p.categoria].name : "Todas as ofertas";
+  const activeFilters = [p.loja, p.minCents, p.maxCents, p.desconto || undefined].filter((v) => v != null).length;
 
   return (
     <>
-      <h1>Todas as ofertas</h1>
-      <p className="muted">Último preço de cada produto que acompanhamos. O filtro de preço considera o total (com frete, quando informado).</p>
-      <nav className="chips" aria-label="Filtrar por loja">
-        <a className={`chip ${p.loja === null ? "sel" : ""}`} href={link({ loja: null })}>Todas as lojas</a>
-        {STORE_IDS.map((id) => (
-          <a key={id} className={`chip ${p.loja === id ? "sel" : ""}`} href={link({ loja: id })}>{STORES[id].name}</a>
-        ))}
-      </nav>
-      <form className="filters" action="/ofertas" method="get">
-        {p.loja && <input type="hidden" name="loja" value={p.loja} />}
-        <label>Preço total mínimo (R$)<input name="min" inputMode="decimal" defaultValue={formatReais(p.minCents)} placeholder="0" /></label>
-        <label>Preço total máximo (R$)<input name="max" inputMode="decimal" defaultValue={formatReais(p.maxCents)} placeholder="sem limite" /></label>
-        <label>Ordenar por
-          <select name="ordem" defaultValue={p.ordem}>
-            {PRODUCT_ORDERS.map((o) => <option key={o} value={o}>{ORDEM_LABEL[o]}</option>)}
-          </select>
-        </label>
-        <button type="submit">Filtrar</button>
-      </form>
-      {items.length === 0 ? (
-        <p>
-          Nenhuma oferta encontrada com esses filtros.{" "}
-          {p.pagina > 1 && <a href={link({ pagina: 1 })}>Voltar à primeira página</a>}
+      <CategoryNav current={p.categoria} counts={counts} />
+      <div className="catalog-head">
+        <h1>{heading}</h1>
+        <p className="muted">
+          {total} {total === 1 ? "produto" : "produtos"}, com o último preço de cada um. O preço mostrado já soma o frete quando a loja informa.
         </p>
-      ) : (
-        <>
-          <p className="muted">{total} {total === 1 ? "produto" : "produtos"} · página {p.pagina} de {pages}</p>
-          <div className="list">
-            {items.map((i) => (
-              <div key={i.productId} className="card" data-testid="offer">
-                {i.imageUrl && <img src={i.imageUrl} alt="" />}
-                <div className="info">
-                  <a className="title" href={`/produto/${i.productId}`}>{i.title}</a>
-                  <div className="muted">
-                    {STORES[i.store].name} ·{" "}
-                    {i.shippingCents === null ? "frete a calcular" : i.shippingCents === 0 ? "frete grátis" : `frete ${formatBRL(i.shippingCents)}`}
-                  </div>
-                  <PriceBadges priceCents={i.priceCents} originalPriceCents={i.originalPriceCents} pagamento={i.pagamento} />
-                </div>
-                <div className="price">{formatBRL(i.priceCents + (i.shippingCents ?? 0))}</div>
-                <a className="btn" href={`/ir/${i.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
+      </div>
+
+      <div className="catalog">
+        <div className="filters-panel">
+          <input type="checkbox" id="filtros" className="filters-toggle" defaultChecked={activeFilters > 0} />
+          <label htmlFor="filtros" className="filters-summary">
+            Filtros e ordem{activeFilters > 0 && <span className="count">{activeFilters}</span>}
+          </label>
+          <form className="filters" action="/ofertas" method="get">
+            {p.categoria && <input type="hidden" name="categoria" value={p.categoria} />}
+            <fieldset>
+              <legend>Loja</legend>
+              <label className="radio"><input type="radio" name="loja" value="" defaultChecked={p.loja === null} /> Todas</label>
+              {STORE_IDS.map((id) => (
+                <label key={id} className="radio">
+                  <input type="radio" name="loja" value={id} defaultChecked={p.loja === id} /> {STORES[id].name}
+                </label>
+              ))}
+            </fieldset>
+            <fieldset>
+              <legend>Preço (R$)</legend>
+              <div className="range">
+                <input name="min" aria-label="Preço mínimo" inputMode="decimal" defaultValue={formatReais(p.minCents)} placeholder="mín." />
+                <input name="max" aria-label="Preço máximo" inputMode="decimal" defaultValue={formatReais(p.maxCents)} placeholder="máx." />
               </div>
-            ))}
-          </div>
-          <nav className="pager" aria-label="Paginação">
-            {p.pagina > 1 ? <a className="chip" rel="prev" href={link({ pagina: p.pagina - 1 })}>← Anterior</a> : <span />}
-            {p.pagina < pages && <a className="chip" rel="next" href={link({ pagina: p.pagina + 1 })}>Próxima →</a>}
-          </nav>
-        </>
-      )}
+            </fieldset>
+            <label className="check">
+              <input type="checkbox" name="desconto" value="1" defaultChecked={p.desconto} /> Só produtos com desconto
+            </label>
+            <label className="select">Ordenar por
+              <select name="ordem" defaultValue={p.ordem}>
+                {PRODUCT_ORDERS.map((o) => <option key={o} value={o}>{ORDEM_LABEL[o]}</option>)}
+              </select>
+            </label>
+            <div className="filter-actions">
+              <button type="submit">Aplicar filtros</button>
+              {activeFilters > 0 && <a className="btn ghost" href={link({ loja: null, minCents: undefined, maxCents: undefined, desconto: false })}>Limpar</a>}
+            </div>
+          </form>
+        </div>
+
+        <div className="catalog-results">
+          {items.length === 0 ? (
+            <div className="empty">
+              <p>Nenhum produto com esses filtros.</p>
+              {p.pagina > 1 ? <a href={link({ pagina: 1 })}>Voltar à primeira página</a> : <a href="/ofertas">Ver todas as ofertas</a>}
+            </div>
+          ) : (
+            <>
+              <div className="grid">
+                {items.map((i) => <ProductCard key={i.productId} p={i} />)}
+              </div>
+              <nav className="pager" aria-label="Paginação">
+                {p.pagina > 1 ? <a className="btn ghost" rel="prev" href={link({ pagina: p.pagina - 1 })}>Anterior</a> : <span />}
+                <span className="muted">Página {p.pagina} de {pages}</span>
+                {p.pagina < pages ? <a className="btn ghost" rel="next" href={link({ pagina: p.pagina + 1 })}>Próxima</a> : <span />}
+              </nav>
+            </>
+          )}
+        </div>
+      </div>
     </>
   );
 }
