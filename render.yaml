@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: buskativa-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile.web
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: AFFILIATE_PARAMS_AMAZON
+        sync: false
+      - key: AFFILIATE_PARAMS_MERCADOLIVRE
+        sync: false
+      - key: AFFILIATE_PARAMS_SHOPEE
+        sync: false
+      - key: AFFILIATE_PARAMS_MAGALU
+        sync: false
+      - key: AFFILIATE_PARAMS_ALIEXPRESS
+        sync: false
+  - type: worker
+    name: buskativa-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.worker
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: ML_ACCESS_TOKEN
+        sync: false
+      - key: AMAZON_PAAPI_ACCESS_KEY
+        sync: false
+      - key: AMAZON_PAAPI_SECRET_KEY
+        sync: false
+      - key: AMAZON_PAAPI_PARTNER_TAG
+        sync: false
+  - type: keyvalue
+    name: buskativa-redis
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
