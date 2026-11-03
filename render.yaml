@@ -1,13 +1,24 @@
+# Blueprint do Render. Região: oregon (a mais próxima do Brasil entre as do Render, ~170 ms; não há região no BR).
+# Os dois serviços e o Key Value precisam estar na MESMA região para usar a URL interna do Redis.
 services:
   - type: web
     name: buskativa-web
     runtime: docker
     dockerfilePath: ./Dockerfile.web
+    plan: starter
+    region: oregon
+    healthCheckPath: /
     envVars:
-      - key: DATABASE_URL
+      - key: DATABASE_URL # Supabase, session pooler
         sync: false
       - key: REDIS_URL
         fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: VOTE_SALT
+        generateValue: true
+      - key: TRUSTED_IP_HEADER # opcional; vazio = só x-forwarded-for
+        sync: false
       - key: AFFILIATE_PARAMS_AMAZON
         sync: false
       - key: AFFILIATE_PARAMS_MERCADOLIVRE
@@ -18,15 +29,47 @@ services:
         sync: false
       - key: AFFILIATE_PARAMS_ALIEXPRESS
         sync: false
-  - type: worker
+      # Google e institucional (todas opcionais). As NEXT_PUBLIC_* são lidas no build: mudou, faça novo deploy.
+      - key: GOOGLE_SITE_VERIFICATION
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: NEXT_PUBLIC_GA_ID
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_CLIENT
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_HOME
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_RESULTS
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT
+        sync: false
+      - key: NEXT_PUBLIC_CONTACT_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_CONTROLLER_NAME
+        sync: false
+  # O worker é um Web Service (não Background Worker) só para ter a porta de health check; plano starter (512 MB) comporta 1 Chromium.
+  - type: web
     name: buskativa-worker
     runtime: docker
     dockerfilePath: ./Dockerfile.worker
+    plan: starter
+    region: oregon
+    healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
         fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: WORKER_CONCURRENCY
+        value: "1"
+      # CONNECTORS fica sem definir em produção (= lojas reais; "demo" liga lojas falsas)
+      - key: KWAI_ENABLED
+        value: "false"
+      - key: SEARCH_INTERVAL_MIN
+        value: "60"
+      - key: SEARCH_FAST_INTERVAL_MIN
+        value: "30"
       - key: ML_ACCESS_TOKEN
         sync: false
       - key: AMAZON_PAAPI_ACCESS_KEY
@@ -37,5 +80,7 @@ services:
         sync: false
   - type: keyvalue
     name: buskativa-redis
+    plan: free
+    region: oregon
     ipAllowList: []
     maxmemoryPolicy: noeviction
