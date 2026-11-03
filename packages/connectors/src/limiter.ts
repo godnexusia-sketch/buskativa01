@@ -10,8 +10,12 @@ export function createLimiter(concurrency: number, minIntervalMs: number): Limit
     else await new Promise<void>((resolve) => waiting.push(resolve)); // a vaga é repassada por release()
     const startAt = Math.max(Date.now(), nextStart);
     nextStart = startAt + minIntervalMs;
-    const wait = startAt - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    // setTimeout pode disparar alguns ms antes do relógio (Windows); repete até o instante alvo.
+    for (let wait = startAt - Date.now(); wait > 0; wait = startAt - Date.now()) {
+      await new Promise((r) => setTimeout(r, wait));
+    }
+    // o intervalo conta a partir do início real, não do agendado (o loop de eventos pode atrasar)
+    nextStart = Math.max(nextStart, Date.now() + minIntervalMs);
   }
 
   function release() {
