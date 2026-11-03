@@ -18,6 +18,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <button type="submit">Buscar</button>
           </form>
           <nav className="main" aria-label="Principal">
+            <a href="/">Início</a>
+            <a href="/ofertas">Ofertas</a>
             <a href="/cupons">Cupons</a>
           </nav>
         </header>
