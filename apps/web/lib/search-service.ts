@@ -8,6 +8,8 @@ export interface SearchResultItem {
   title: string;
   imageUrl: string | null;
   priceCents: number;
+  originalPriceCents: number | null;
+  pagamento: "app" | "pix" | null;
   shippingCents: number | null;
   totalCents: number;
   groupId: number;

@@ -37,6 +37,21 @@ describe("mercadoLivreConnector", () => {
     expect(offers[1].shipping).toBeNull();
   });
 
+  it("original_price vira originalPrice só quando é maior que o preço", async () => {
+    const body = JSON.stringify({
+      results: [
+        { id: "MLB1", title: "A", permalink: "https://x/1", price: 100, original_price: 150 },
+        { id: "MLB2", title: "B", permalink: "https://x/2", price: 100, original_price: 100 },
+        { id: "MLB3", title: "C", permalink: "https://x/3", price: 100, original_price: null },
+        { id: "MLB4", title: "D", permalink: "https://x/4", price: 100 },
+      ],
+    });
+    const c = mercadoLivreConnector({ fetch: async () => new Response(body, { status: 200 }) });
+    const offers = await c.search(q, { limit: 10 });
+    expect(offers.map((o) => o.originalPrice)).toEqual([150, undefined, undefined, undefined]);
+    expect("originalPrice" in offers[1]).toBe(false);
+  });
+
   it("403 vira BLOCKED e 500 vira NETWORK", async () => {
     const blocked = mercadoLivreConnector({ fetch: async () => new Response("", { status: 403 }) });
     await expect(blocked.search(q, { limit: 5 })).rejects.toMatchObject({ code: "BLOCKED" });

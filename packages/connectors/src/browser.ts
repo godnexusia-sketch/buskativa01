@@ -33,6 +33,8 @@ export async function closeBrowser(): Promise<void> {
   }
 }
 
+const BLOCKED_RESOURCES = new Set(["image", "media", "font"]);
+
 const BLOCK_TEXT = /captcha|não sou um robô|nao sou um robo|verifique se você é humano|robot check|unusual traffic|acesso negado/i;
 const LOGIN_URL = /\/(login|signin|buyer\/login|verify\/traffic)/i;
 
@@ -66,6 +68,10 @@ export async function fetchRendered(
       viewport: { width: 1366, height: 900 },
     });
     if (signal?.aborted) throw new Error("aborted");
+    // the parsers read only the HTML: skipping images, media and fonts saves memory and bandwidth
+    await ctx.route("**/*", (route) =>
+      BLOCKED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue(),
+    );
     const page = await ctx.newPage();
     const status = (await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs }))?.status() ?? null;
     if (status !== null && status >= 500) throw new ConnectorError("NETWORK", `HTTP ${status}`);

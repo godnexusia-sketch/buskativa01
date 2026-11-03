@@ -18,7 +18,14 @@ function fakeBrowser(opts: { status?: number; newContext?: () => Promise<unknown
     url: () => "https://loja.example/busca",
     content: vi.fn(async () => `<html><body>${BODY}</body></html>`),
   };
-  const ctx = { newPage: vi.fn(async () => page), close: vi.fn(async () => {}) };
+  type RouteHandler = (route: { request: () => { resourceType: () => string }; abort: () => Promise<void>; continue: () => Promise<void> }) => unknown;
+  const routes: RouteHandler[] = [];
+  const ctx = {
+    newPage: vi.fn(async () => page),
+    close: vi.fn(async () => {}),
+    route: vi.fn(async (_pattern: string, handler: RouteHandler) => void routes.push(handler)),
+    routes,
+  };
   const browser = Object.assign(new EventEmitter(), {
     newContext: vi.fn(opts.newContext ?? (async () => ctx)),
     close: vi.fn(async () => {}),
@@ -84,6 +91,27 @@ describe("fetchRendered", () => {
       }).browser,
     );
     expect((await rejection(fetchRendered("https://loja.example/busca"))).code).toBe("NETWORK");
+  });
+});
+
+describe("fetchRendered bloqueia recursos pesados", () => {
+  it("aborta imagem, mídia e fonte e deixa passar o resto", async () => {
+    const { browser, ctx } = fakeBrowser();
+    launch.mockResolvedValue(browser);
+    await fetchRendered("https://loja.example/busca");
+    expect(ctx.route).toHaveBeenCalledTimes(1);
+    const handler = ctx.routes[0];
+    const decide = async (type: string) => {
+      const route = { request: () => ({ resourceType: () => type }), abort: vi.fn(async () => {}), continue: vi.fn(async () => {}) };
+      await handler(route);
+      return route.abort.mock.calls.length ? "abort" : route.continue.mock.calls.length ? "continue" : "nada";
+    };
+    expect(await decide("image")).toBe("abort");
+    expect(await decide("media")).toBe("abort");
+    expect(await decide("font")).toBe("abort");
+    expect(await decide("document")).toBe("continue");
+    expect(await decide("script")).toBe("continue");
+    expect(await decide("xhr")).toBe("continue");
   });
 });
 

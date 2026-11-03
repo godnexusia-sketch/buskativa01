@@ -36,6 +36,19 @@ describe("amazonPaapiConnector", () => {
     ]);
   });
 
+  it("SavingBasis.Amount vira originalPrice só quando é maior que o preço", async () => {
+    const item = (asin: string, basis?: number) => ({
+      ASIN: asin,
+      DetailPageURL: `https://www.amazon.com.br/dp/${asin}`,
+      ItemInfo: { Title: { DisplayValue: asin } },
+      Offers: { Listings: [{ Price: { Amount: 100 }, SavingBasis: basis === undefined ? undefined : { Amount: basis } }] },
+    });
+    const c = amazonPaapiConnector({ searchItems: async () => [item("A", 130), item("B", 100), item("C", 80), item("D")] });
+    const offers = await c.search(normalizeQuery("fone bluetooth"), { limit: 5 });
+    expect(offers.map((o) => o.originalPrice)).toEqual([130, undefined, undefined, undefined]);
+    expect("originalPrice" in offers[1]).toBe(false);
+  });
+
   it("chamada que não responde vira TIMEOUT", async () => {
     const c = amazonPaapiConnector({ searchItems: () => new Promise(() => {}), timeoutMs: 20 });
     await expect(c.search(normalizeQuery("fone"), { limit: 5 })).rejects.toMatchObject({ code: "TIMEOUT" });

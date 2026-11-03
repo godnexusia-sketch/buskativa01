@@ -3,7 +3,7 @@ import { createSearchQueue, redisConnection, type SearchJob } from "@buskativa/q
 import type { Queue } from "bullmq";
 import { createRateLimiter } from "./rate-limit";
 
-const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter> };
+const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter>; __voteLimiter?: ReturnType<typeof createRateLimiter>; __ipHeadersLogged?: boolean };
 
 export function getDb(): Db {
   g.__db ??= createDb(process.env.DATABASE_URL!).db;
@@ -20,13 +20,26 @@ export function allowSearch(ip: string): boolean {
   return g.__limiter(ip);
 }
 
+export function allowVote(ip: string): boolean {
+  g.__voteLimiter ??= createRateLimiter(10, 60e3);
+  return g.__voteLimiter(ip);
+}
+
+/** Salt for hashing voter IPs; without it votes are refused (503) instead of storing weak hashes. */
+export function voteSalt(): string | null {
+  return process.env.VOTE_SALT || null;
+}
+
 /**
- * Client IP for rate limiting. Headers set by a CDN/proxy win; otherwise the RIGHT-most
- * x-forwarded-for hop (the one our proxy appended) since the left-most is client-controlled.
+ * Client IP for rate limiting. Client-settable headers (cf-connecting-ip, x-real-ip...) are NOT
+ * trusted by default: only the RIGHT-most x-forwarded-for hop (appended by our proxy) is used.
+ * Set TRUSTED_IP_HEADER (e.g. "cf-connecting-ip") when a CDN you control sets that header and the
+ * app is only reachable through it; that header then becomes the only alternative trusted.
  */
 export function clientIp(req: Request): string {
-  for (const name of ["cf-connecting-ip", "true-client-ip", "x-real-ip"]) {
-    const v = req.headers.get(name)?.trim();
+  const trusted = process.env.TRUSTED_IP_HEADER?.trim().toLowerCase();
+  if (trusted) {
+    const v = req.headers.get(trusted)?.trim();
     if (v) return v;
   }
   const hops = (req.headers.get("x-forwarded-for") ?? "")
@@ -34,4 +47,21 @@ export function clientIp(req: Request): string {
     .map((h) => h.trim())
     .filter(Boolean);
   return hops.at(-1) ?? "local";
+}
+
+/**
+ * Deploy check: with LOG_CLIENT_IP_HEADERS=true, logs the raw client-IP headers of the first search
+ * request of the process, to confirm what the proxy sends before choosing TRUSTED_IP_HEADER.
+ * Turn it off afterwards (it logs an IP address).
+ */
+export function logClientIpHeadersOnce(req: Request): void {
+  if (process.env.LOG_CLIENT_IP_HEADERS !== "true" || g.__ipHeadersLogged) return;
+  g.__ipHeadersLogged = true;
+  const h = (name: string) => req.headers.get(name);
+  console.info("cabeçalhos de IP do cliente (LOG_CLIENT_IP_HEADERS)", {
+    "x-forwarded-for": h("x-forwarded-for"),
+    "true-client-ip": h("true-client-ip"),
+    "cf-connecting-ip": h("cf-connecting-ip"),
+    clientIp: clientIp(req),
+  });
 }

@@ -27,10 +27,19 @@ describe("createRateLimiter", () => {
 const req = (headers: Record<string, string>) => new Request("http://localhost/api/buscas", { headers });
 
 describe("clientIp", () => {
-  it("prefere cabeçalhos definidos pelo proxy/CDN", () => {
-    expect(clientIp(req({ "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "9.9.9.9" }))).toBe("1.1.1.1");
-    expect(clientIp(req({ "true-client-ip": "2.2.2.2", "x-forwarded-for": "9.9.9.9" }))).toBe("2.2.2.2");
-    expect(clientIp(req({ "x-real-ip": "3.3.3.3", "x-forwarded-for": "9.9.9.9" }))).toBe("3.3.3.3");
+  it("ignora cabeçalhos forjáveis por padrão", () => {
+    delete process.env.TRUSTED_IP_HEADER;
+    expect(clientIp(req({ "cf-connecting-ip": "1.1.1.1", "x-real-ip": "3.3.3.3", "true-client-ip": "2.2.2.2", "x-forwarded-for": "9.9.9.9" }))).toBe("9.9.9.9");
+  });
+
+  it("com TRUSTED_IP_HEADER usa só esse cabeçalho e cai no x-forwarded-for se ele faltar", () => {
+    process.env.TRUSTED_IP_HEADER = "CF-Connecting-IP";
+    try {
+      expect(clientIp(req({ "cf-connecting-ip": "1.1.1.1", "x-real-ip": "3.3.3.3", "x-forwarded-for": "9.9.9.9" }))).toBe("1.1.1.1");
+      expect(clientIp(req({ "x-real-ip": "3.3.3.3", "x-forwarded-for": "9.9.9.9" }))).toBe("9.9.9.9");
+    } finally {
+      delete process.env.TRUSTED_IP_HEADER;
+    }
   });
 
   it("usa o salto mais à direita do x-forwarded-for (o primeiro é forjável pelo cliente)", () => {

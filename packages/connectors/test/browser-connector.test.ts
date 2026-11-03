@@ -3,7 +3,7 @@ import { normalizeQuery } from "@buskativa/core";
 import { describe, expect, it } from "vitest";
 import { browserConnector } from "../src/browser-connector";
 import { BROWSER_STORES } from "../src/browser-stores";
-import { createConnectors } from "../src/index";
+import { browserMaxContexts, createConnectors } from "../src/index";
 import { createLimiter } from "../src/limiter";
 
 const html = readFileSync(new URL("../fixtures/amazon-search.html", import.meta.url), "utf8");
@@ -47,6 +47,45 @@ describe("browserConnector", () => {
     });
     await expect(c.search(normalizeQuery("fone"), { limit: 5 })).rejects.toMatchObject({ code: "TIMEOUT" });
     expect(signal?.aborted).toBe(true);
+  });
+});
+
+describe("semáforo global de contextos do navegador", () => {
+  it("limita os contextos abertos ao mesmo tempo entre lojas diferentes", async () => {
+    const contextSlots = createLimiter(1, 0);
+    let active = 0;
+    let maxActive = 0;
+    const fetchHtml = async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 30));
+      active--;
+      return html;
+    };
+    const stores = (["amazon", "magalu", "shopee"] as const).map((id) =>
+      browserConnector(id, { ...BROWSER_STORES[id], parse: () => [] }, { fetchHtml, limiter: createLimiter(1, 0), contextSlots }),
+    );
+    await Promise.all(stores.map((c) => c.search(normalizeQuery("fone"), { limit: 5 })));
+    expect(maxActive).toBe(1);
+  });
+
+  it("o prazo por busca não conta a espera pelo semáforo global", async () => {
+    const contextSlots = createLimiter(1, 0);
+    const fetchHtml = () => new Promise<string>((r) => setTimeout(() => r(html), 80));
+    const mk = (id: "amazon" | "magalu") =>
+      browserConnector(id, { ...BROWSER_STORES[id], parse: () => [] }, {
+        fetchHtml, limiter: createLimiter(1, 0), contextSlots, fetchTimeoutMs: 150,
+      });
+    // juntas levam ~160 ms (> 150), mas cada busca leva só ~80 ms
+    await expect(Promise.all([mk("amazon"), mk("magalu")].map((c) => c.search(normalizeQuery("fone"), { limit: 5 }))))
+      .resolves.toEqual([[], []]);
+  });
+
+  it("BROWSER_MAX_CONTEXTS: padrão 1, inteiro positivo", () => {
+    expect(browserMaxContexts({})).toBe(1);
+    expect(browserMaxContexts({ BROWSER_MAX_CONTEXTS: "2" })).toBe(2);
+    expect(browserMaxContexts({ BROWSER_MAX_CONTEXTS: "0" })).toBe(1);
+    expect(browserMaxContexts({ BROWSER_MAX_CONTEXTS: "abc" })).toBe(1);
   });
 });
 

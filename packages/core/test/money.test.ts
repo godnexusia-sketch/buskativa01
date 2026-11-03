@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAllBRL, parseBRL, pickCardPrice, toCents } from "../src/money";
+import { detectPagamento, parseAllBRL, parseBRL, pickCardPrice, pickCardPrices, toCents } from "../src/money";
 
 describe("parseBRL", () => {
   it.each([
@@ -49,6 +49,28 @@ describe("pickCardPrice", () => {
     ["R$ 279,90 R$ 30,00 de desconto", 279.9],
     ["R$ 279,90 R$ 50 OFF", 279.9],
     ["por apenas 89,90 em 3x de 29,97", 89.9],
+    ["R$ 279,90 em 10x sem juros de R$ 27,99", 279.9],
+    ["R$ 279,90 Frete grátis acima de R$ 99,00", 279.9],
+    ["R$ 279,90 Frete grátis a partir de R$ 99,00", 279.9],
+    ["R$ 279,90 Frete grátis R$ 0,00", 279.9],
+    ["R$ 279,90 + R$ 15,00 de frete", 279.9],
+    ["R$ 279,90 ganhe R$ 5,00 de volta", 279.9],
+    ["R$ 279,90 R$ 27,99 por mês", 279.9],
+    ["R$ 279,90 R$ 27,99/mês", 279.9],
+    ["R$ 279,90 (R$ 27,99/un)", 279.9],
+    ["R$ 279,90 R$ 3,50 / 100g", 279.9],
+    ["R$ 279,90 R$ 3,50 / 1 kg", 279.9],
+    ["R$ 279,90 R$ 0,50 / 100ml", 279.9],
+    ["R$ 279,90 R$ 5,00", 279.9],
+    ["R$ 399,00 R$ 279,90 frete grátis", 279.9],
+    ["de R$ 399,00 por R$ 279,90 Frete grátis", 279.9],
+    ["R$ 1.099 à vista ou R$ 1.199 em 10x", 1099],
+    ["R$ 279,90 + R$ 49,90 frete", 279.9],
+    ["R$ 279,90 R$ 49,90 frete", 279.9],
+    ["R$ 279,90 R$ 50,00 volta", 279.9],
+    ["R$ 1.099 à vista ou R$ 1.199 em 10x de R$ 119,90 sem juros", 1099],
+    ["R$ 279,90 em 10x R$ 27,99", 279.9],
+    ["R$ 1.299,00 R$ 1.099,00 à vista no Pix ou R$ 1.199,00 em até 10x de R$ 119,90 sem juros", 1099],
   ])("%s -> %d", (text, expected) => {
     expect(pickCardPrice(text)).toBeCloseTo(expected);
   });
@@ -59,6 +81,81 @@ describe("pickCardPrice", () => {
 
   it("retorna null sem preço", () => {
     expect(pickCardPrice("sem preço")).toBeNull();
+  });
+
+  it("nunca retorna valor menor ou igual a zero", () => {
+    expect(pickCardPrice("Frete grátis R$ 0,00")).toBeNull();
+    expect(pickCardPrice("R$ 0,00 R$ 10,00")).toBeCloseTo(10);
+  });
+
+  it("descarta valores abaixo de 10% do maior candidato", () => {
+    expect(pickCardPrice("R$ 3,50 R$ 279,90")).toBeCloseTo(279.9);
+  });
+});
+
+describe("pickCardPrices", () => {
+  it("devolve o preço original (maior candidato) quando é maior que o preço", () => {
+    expect(pickCardPrices("de R$ 399,00 R$ 279,90 no Pix")).toEqual({ price: 279.9, originalPrice: 399, pagamento: "pix" });
+    expect(pickCardPrices("R$ 1.299,00 R$ 1.099,00 à vista no Pix ou R$ 1.199,00 em até 10x de R$ 119,90 sem juros")).toEqual({
+      price: 1099,
+      originalPrice: 1299,
+      pagamento: "pix",
+    });
+  });
+
+  it("não devolve original quando não há candidato maior", () => {
+    expect(pickCardPrices("R$ 279,90 no Pix ou 10x de R$ 27,99 sem juros")).toEqual({ price: 279.9, pagamento: "pix" });
+    expect(pickCardPrices("R$ 279,90 Frete grátis acima de R$ 999,00")).toEqual({ price: 279.9 });
+  });
+
+  it("retorna null sem preço", () => {
+    expect(pickCardPrices("sem preço")).toBeNull();
+  });
+});
+
+describe("pickCardPrices: original e pagamento", () => {
+  it("frete grátis depois do preço não vira preço", () => {
+    expect(pickCardPrices("R$ 399,00 R$ 279,90 frete grátis")).toEqual({ price: 279.9, originalPrice: 399 });
+    expect(pickCardPrices("de R$ 399,00 por R$ 279,90 Frete grátis")).toEqual({ price: 279.9, originalPrice: 399 });
+  });
+
+  it("total seguido da própria parcela não vira preço original", () => {
+    expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em 10x de R$ 119,90 sem juros")).toEqual({ price: 1099 });
+    expect(pickCardPrices("R$ 279,90 em 10x R$ 27,99")).toEqual({ price: 279.9 });
+    expect(pickCardPrices("R$ 399,00 R$ 279,90 em 10x R$ 27,99")).toEqual({ price: 279.9, originalPrice: 399 });
+  });
+
+  it("total parcelado (em 10x) não conta como preço original", () => {
+    expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em 10x")).toEqual({ price: 1099 });
+    expect(pickCardPrices("R$ 1.099 à vista ou R$ 1.199 em até 12x")).toEqual({ price: 1099 });
+  });
+
+  it("pagamento só vale perto do preço escolhido", () => {
+    expect(pickCardPrices("R$ 279,90 no Pix")).toMatchObject({ price: 279.9, pagamento: "pix" });
+    expect(pickCardPrices("R$ 250,00 no Pix ou R$ 279,90 no cartão")).toMatchObject({ price: 250, pagamento: "pix" });
+    expect(pickCardPrices("R$ 279,90 5% de desconto no Pix")?.pagamento).toBeUndefined();
+    expect(pickCardPrices("R$ 279,90 desconto de 5% no Pix")?.pagamento).toBeUndefined();
+    expect(pickCardPrices("R$ 279,90 baixe nosso app")?.pagamento).toBeUndefined();
+    expect(pickCardPrices("R$ 279,90 em 10x de R$ 27,99. Compre no Pix de qualquer loja bem longe")?.pagamento).toBeUndefined();
+  });
+});
+
+describe("detectPagamento", () => {
+  it.each([
+    [" no app", "app"],
+    [" pelo app", "app"],
+    [" exclusivo do app", "app"],
+    [" exclusivo no app", "app"],
+    [" no Pix", "pix"],
+    [" à vista no Pix", "pix"],
+  ])("%s -> %s", (text, expected) => {
+    expect(detectPagamento(text)).toBe(expected);
+  });
+
+  it("retorna undefined sem menção", () => {
+    expect(detectPagamento(" em 10x")).toBeUndefined();
+    expect(detectPagamento(" capa do aplicativo")).toBeUndefined();
+    expect(detectPagamento(" 5% de desconto no Pix")).toBeUndefined();
   });
 });
 

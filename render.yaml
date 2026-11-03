@@ -1,13 +1,28 @@
+# Blueprint do Render. Região: virginia (a região do Render mais próxima do Brasil; não há região na América do Sul).
+# Os dois serviços e o Key Value precisam estar na MESMA região para usar a URL interna do Redis.
 services:
   - type: web
     name: buskativa-web
     runtime: docker
     dockerfilePath: ./Dockerfile.web
+    plan: starter
+    region: virginia
+    healthCheckPath: /api/health
     envVars:
-      - key: DATABASE_URL
+      - key: DATABASE_URL # Supabase, session pooler (sslmode na URL é ignorado; TLS por DATABASE_SSL)
         sync: false
+      - key: DB_POOL_MAX # session pooler gratuito: ~15 clientes no total (web 5 + worker 5)
+        value: "5"
       - key: REDIS_URL
         fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: VOTE_SALT
+        generateValue: true
+      - key: TRUSTED_IP_HEADER # opcional; vazio = só x-forwarded-for
+        sync: false
+      - key: LOG_CLIENT_IP_HEADERS # checagem de deploy: "true" registra os cabeçalhos de IP uma vez; apague depois
+        sync: false
       - key: AFFILIATE_PARAMS_AMAZON
         sync: false
       - key: AFFILIATE_PARAMS_MERCADOLIVRE
@@ -18,15 +33,54 @@ services:
         sync: false
       - key: AFFILIATE_PARAMS_ALIEXPRESS
         sync: false
-  - type: worker
+      # Google e institucional (todas opcionais). As NEXT_PUBLIC_* são lidas no build: mudou, faça novo deploy.
+      - key: GOOGLE_SITE_VERIFICATION
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: NEXT_PUBLIC_GA_ID
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_CLIENT
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_HOME
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_RESULTS
+        sync: false
+      - key: NEXT_PUBLIC_ADSENSE_SLOT_PRODUCT
+        sync: false
+      - key: NEXT_PUBLIC_CONTACT_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_CONTROLLER_NAME
+        sync: false
+  # O worker é um Web Service (não Background Worker) só para ter a porta de health check.
+  # 512 MB (starter) é apertado para Node + Chromium: 1 busca, 1 contexto, heap limitado; confira o gráfico de memória.
+  - type: web
     name: buskativa-worker
     runtime: docker
     dockerfilePath: ./Dockerfile.worker
+    plan: starter
+    region: virginia
+    healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: DB_POOL_MAX
+        value: "5"
       - key: REDIS_URL
         fromService: { type: keyvalue, name: buskativa-redis, property: connectionString }
+      - key: WORKER_CONCURRENCY
+        value: "1"
+      - key: BROWSER_MAX_CONTEXTS # páginas do Chromium abertas ao mesmo tempo, somando todas as lojas
+        value: "1"
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=256"
+      # CONNECTORS fica sem definir em produção (= lojas reais; "demo" liga lojas falsas)
+      - key: KWAI_ENABLED
+        value: "false"
+      - key: SEARCH_INTERVAL_MIN
+        value: "60"
+      - key: SEARCH_FAST_INTERVAL_MIN
+        value: "30"
       - key: ML_ACCESS_TOKEN
         sync: false
       - key: AMAZON_PAAPI_ACCESS_KEY
@@ -37,5 +91,7 @@ services:
         sync: false
   - type: keyvalue
     name: buskativa-redis
+    plan: free
+    region: virginia
     ipAllowList: []
     maxmemoryPolicy: noeviction

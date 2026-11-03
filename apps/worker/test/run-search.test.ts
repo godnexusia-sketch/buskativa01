@@ -51,11 +51,17 @@ describe("runConnector", () => {
 });
 
 describe("attemptTimeoutMs", () => {
-  it("cobre a fila do limitador: uma busca própria mais (concorrência - 1) à frente", () => {
-    const perFetchWithGap = 45000 + 5000;
-    expect(attemptTimeoutMs(1)).toBeGreaterThan(perFetchWithGap);
-    expect(attemptTimeoutMs(3)).toBeGreaterThan(3 * perFetchWithGap);
-    expect(attemptTimeoutMs(6)).toBeGreaterThan(6 * perFetchWithGap);
+  const perFetchWithGap = 45000 + 5000;
+  it("cobre a fila do limitador por loja: uma busca própria mais (concorrência - 1) à frente", () => {
+    expect(attemptTimeoutMs(1, 1, 1)).toBeGreaterThan(perFetchWithGap);
+    expect(attemptTimeoutMs(3, 1, 3)).toBeGreaterThan(3 * perFetchWithGap);
+    expect(attemptTimeoutMs(6, 2, 100)).toBeGreaterThan(6 * perFetchWithGap);
+  });
+
+  it("cobre a fila do semáforo global: todas as buscas de navegador de todas as lojas", () => {
+    // 1 job, 5 lojas de navegador, 1 contexto: a última loja espera as outras 4
+    expect(attemptTimeoutMs(1, 5, 1)).toBeGreaterThan(5 * perFetchWithGap);
+    expect(attemptTimeoutMs(3, 6, 2)).toBeGreaterThan(9 * perFetchWithGap);
   });
 });
 

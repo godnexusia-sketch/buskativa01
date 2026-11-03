@@ -23,11 +23,17 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 /**
  * Outer backstop for one connector attempt. Browser connectors enforce their own per-fetch cap
- * (FETCH_TIMEOUT_MS) inside the store's limiter (1 at a time, 5 s apart), so an attempt may first
- * wait behind up to (concurrency - 1) other searches; the backstop must cover that queue or it
- * would fire on waiting alone. It still catches connectors that hang without their own timeout.
+ * (FETCH_TIMEOUT_MS) inside two queues: the store's limiter (1 at a time, 5 s apart) and the global
+ * browser-context semaphore (maxContexts shared by all browser stores). Waiting in either queue does not
+ * count against the per-fetch cap, so the backstop must cover the longest wait or it would fire on
+ * waiting alone: behind the store's other searches (concurrency) or behind every browser fetch of every
+ * running search (concurrency × browserStores / maxContexts). It still catches connectors that hang
+ * without their own timeout. browserStores may be an upper bound (e.g. all connectors).
  */
-export const attemptTimeoutMs = (concurrency: number) => concurrency * (FETCH_TIMEOUT_MS + 5000) + 15000;
+export function attemptTimeoutMs(concurrency: number, browserStores: number, maxContexts: number): number {
+  const queued = Math.max(concurrency, Math.ceil((concurrency * browserStores) / maxContexts));
+  return queued * (FETCH_TIMEOUT_MS + 5000) + 15000;
+}
 
 const asConnectorError = (e: unknown) => (e instanceof ConnectorError ? e : new ConnectorError("NETWORK", String(e)));
 
@@ -39,7 +45,7 @@ export async function runConnector(
 ): Promise<Offer[]> {
   const retries = opts.retries ?? 3;
   const baseDelayMs = opts.baseDelayMs ?? 500;
-  const timeoutMs = opts.timeoutMs ?? attemptTimeoutMs(3);
+  const timeoutMs = opts.timeoutMs ?? attemptTimeoutMs(1, 1, 1);
   for (let attempt = 1; ; attempt++) {
     try {
       return await withTimeout(c.search(q, { limit }), timeoutMs);

@@ -1,4 +1,4 @@
-import type { NormalizedQuery, StoreId, StoreStatus } from "@buskativa/core";
+import type { CouponSource, DiscountType, NormalizedQuery, StoreId, StoreStatus } from "@buskativa/core";
 import {
   boolean, index, integer, jsonb, pgTable, real, serial, text, timestamp, uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -37,6 +37,7 @@ export const priceObservations = pgTable(
     id: serial("id").primaryKey(),
     productId: integer("product_id").notNull().references(() => products.id),
     priceCents: integer("price_cents").notNull(),
+    originalPriceCents: integer("original_price_cents"),
     shippingCents: integer("shipping_cents"),
     observedAt: tz("observed_at").notNull().defaultNow(),
   },
@@ -64,6 +65,7 @@ export const queryResults = pgTable(
     productId: integer("product_id").notNull().references(() => products.id),
     position: integer("position").notNull(),
     priceCents: integer("price_cents").notNull(),
+    originalPriceCents: integer("original_price_cents"),
     shippingCents: integer("shipping_cents"),
   },
   (t) => [index("query_results_run").on(t.runId), index("query_results_product").on(t.productId)],
@@ -75,3 +77,39 @@ export const clicks = pgTable("clicks", {
   at: tz("at").notNull().defaultNow(),
   referer: text("referer"),
 });
+
+export const coupons = pgTable(
+  "coupons",
+  {
+    id: serial("id").primaryKey(),
+    store: text("store").$type<StoreId>().notNull(),
+    code: text("code").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    discountType: text("discount_type").$type<DiscountType>().notNull(),
+    discountValue: integer("discount_value").notNull(),
+    minOrderCents: integer("min_order_cents"),
+    validUntil: tz("valid_until"),
+    sourceUrl: text("source_url"),
+    source: text("source").$type<CouponSource>().notNull(),
+    active: boolean("active").notNull().default(true),
+    // set when the coupon goes inactive; drives the 30-day vote retention purge
+    deactivatedAt: tz("deactivated_at"),
+    worked: integer("worked").notNull().default(0),
+    failed: integer("failed").notNull().default(0),
+    createdAt: tz("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("coupons_store_code").on(t.store, t.code)],
+);
+
+export const couponVotes = pgTable(
+  "coupon_votes",
+  {
+    id: serial("id").primaryKey(),
+    couponId: integer("coupon_id").notNull().references(() => coupons.id),
+    voterHash: text("voter_hash").notNull(),
+    worked: boolean("worked").notNull(),
+    at: tz("at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("coupon_votes_coupon_voter").on(t.couponId, t.voterHash)],
+);

@@ -12,18 +12,27 @@ type FetchHtml = (url: string, signal: AbortSignal) => Promise<string>;
 export function browserConnector(
   id: BrowserStoreId,
   cfg: BrowserStoreConfig,
-  deps: { fetchHtml?: FetchHtml; limiter?: Limiter; fetchTimeoutMs?: number } = {},
+  deps: {
+    fetchHtml?: FetchHtml;
+    /** Per-store limiter (default: 1 at a time, 5 s apart). */
+    limiter?: Limiter;
+    /** Global cap on open browser contexts, shared by every browser store (default: none). */
+    contextSlots?: Limiter;
+    fetchTimeoutMs?: number;
+  } = {},
 ): Connector {
   const fetchHtml: FetchHtml = deps.fetchHtml ?? ((url, signal) => fetchRendered(url, { signal }));
   const limit = deps.limiter ?? createLimiter(1, 5000);
+  const slot: Limiter = deps.contextSlots ?? ((fn) => fn());
   const fetchTimeoutMs = deps.fetchTimeoutMs ?? FETCH_TIMEOUT_MS;
   return {
     id,
     experimental: cfg.experimental,
     async search(q, { limit: max }) {
       const url = cfg.buildUrl(q);
-      // the deadline runs inside the limited section: waiting for a slot does not count against it
-      const html = await limit(() => withDeadline((signal) => fetchHtml(url, signal), fetchTimeoutMs));
+      // the deadline runs inside both limited sections: waiting for the store's turn or for a global
+      // context slot does not count against it
+      const html = await limit(() => slot(() => withDeadline((signal) => fetchHtml(url, signal), fetchTimeoutMs)));
       return cfg.parse(html, url).slice(0, max);
     },
   };
