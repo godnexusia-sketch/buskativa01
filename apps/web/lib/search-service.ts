@@ -7,6 +7,7 @@ export interface SearchResultItem {
   store: StoreId;
   title: string;
   imageUrl: string | null;
+  sellerName: string | null;
   priceCents: number;
   originalPriceCents: number | null;
   pagamento: "app" | "pix" | null;

@@ -9,11 +9,16 @@ export interface CardProduct {
   store: StoreId;
   title: string;
   imageUrl: string | null;
+  sellerName?: string | null;
   priceCents: number;
   originalPriceCents: number | null;
   shippingCents: number | null;
   pagamento: "app" | "pix" | null;
 }
+
+/** Lomadee products show the real store; the others show the marketplace. */
+export const storeLabel = (store: StoreId, sellerName?: string | null) =>
+  store === "lomadee" && sellerName ? sellerName : STORES[store].name;
 
 export const shippingLabel = (cents: number | null) =>
   cents === null ? "frete a calcular" : cents === 0 ? "frete grátis" : `frete ${formatBRL(cents)}`;
@@ -29,7 +34,7 @@ export function ProductCard({ p }: { p: CardProduct }) {
         {pct !== null && <span className="stamp">-{pct}%</span>}
       </a>
       <div className="pcard-body">
-        <span className="pcard-store">{STORES[p.store].name}</span>
+        <span className="pcard-store">{storeLabel(p.store, p.sellerName)}</span>
         <a className="title" href={`/produto/${p.productId}`}>{p.title}</a>
         <div className="pcard-price">
           {pct !== null && <s className="was">{formatBRL(p.originalPriceCents as number)}</s>}

@@ -4,6 +4,7 @@ import { browserConnector } from "./browser-connector";
 import { BROWSER_STORES } from "./browser-stores";
 import { demoConnectors } from "./demo";
 import { createLimiter } from "./limiter";
+import { lomadeeConnector } from "./lomadee";
 import { mercadoLivreConnector, mlAppToken } from "./mercadolivre";
 
 export { closeBrowser } from "./browser";
@@ -39,6 +40,7 @@ export function createConnectors(env: Record<string, string | undefined>): Conne
   for (const id of ["magalu", "shopee", "aliexpress", "tiktokshop"] as const) {
     list.push(browserConnector(id, BROWSER_STORES[id], { contextSlots }));
   }
+  if (env.LOMADEE_API_KEY) list.push(lomadeeConnector({ apiKey: env.LOMADEE_API_KEY }));
   if (env.KWAI_ENABLED === "true") list.push(browserConnector("kwaishop", BROWSER_STORES.kwaishop, { contextSlots }));
   return list;
 }

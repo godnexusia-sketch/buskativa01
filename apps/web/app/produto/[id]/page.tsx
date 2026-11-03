@@ -14,6 +14,7 @@ import { searchResults } from "../../../lib/search-service";
 import { getDb } from "../../../lib/server";
 import { PriceBadges } from "../../price-badges";
 import { PriceChart } from "./price-chart";
+import { storeLabel } from "../../product-card";
 import { buyVerdict, highestPoint } from "../../../lib/verdict";
 import { CATEGORIES } from "@buskativa/core/categories";
 
@@ -97,7 +98,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
           {product.imageUrl ? <img src={product.imageUrl} alt={product.title} /> : <span className="pcard-noimg" />}
         </div>
         <div className="pdp-info">
-          <span className="pcard-store">{STORES[product.store].name}</span>
+          <span className="pcard-store">{storeLabel(product.store, product.sellerName)}</span>
           <h1>{product.title}</h1>
           {current !== null && (
             <div className="pdp-price">
@@ -167,7 +168,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             {comparison.map((r, i) => (
               <li key={r.productId}>
                 <div className="compare-info">
-                  <span className="pcard-store">{STORES[r.store].name}{i === 0 && current !== null && r.totalCents < current ? " · mais barato" : ""}</span>
+                  <span className="pcard-store">{storeLabel(r.store, r.sellerName)}{i === 0 && current !== null && r.totalCents < current ? " · mais barato" : ""}</span>
                   <a className="title" href={`/produto/${r.productId}`}>{r.title}</a>
                   <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
                 </div>

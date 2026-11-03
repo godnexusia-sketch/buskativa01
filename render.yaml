@@ -23,6 +23,8 @@ services:
         sync: false
       - key: LOG_CLIENT_IP_HEADERS # checagem de deploy: "true" registra os cabeçalhos de IP uma vez; apague depois
         sync: false
+      - key: LOMADEE_API_KEY # gera o link de afiliado da Lomadee no clique
+        sync: false
       - key: AFFILIATE_PARAMS_AMAZON
         sync: false
       - key: AFFILIATE_PARAMS_MERCADOLIVRE
@@ -81,6 +83,8 @@ services:
         value: "60"
       - key: SEARCH_FAST_INTERVAL_MIN
         value: "30"
+      - key: LOMADEE_API_KEY
+        sync: false
       - key: ML_CLIENT_ID
         sync: false
       - key: ML_CLIENT_SECRET

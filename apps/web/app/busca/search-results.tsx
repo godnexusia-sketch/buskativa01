@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
 import { applyOfferView, parseReais, type OfferOrder } from "../../lib/offer-filters";
 import { AdSlot } from "../ad-slot";
-import { ProductCard } from "../product-card";
+import { ProductCard, storeLabel } from "../product-card";
 import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
 
@@ -18,7 +18,7 @@ function Similar({ r }: { r: SearchResultItem }) {
   return (
     <li>
       <a href={`/produto/${r.productId}`}>{r.title}</a>
-      <span className="muted">{STORES[r.store].name}</span>
+      <span className="muted">{storeLabel(r.store, r.sellerName)}</span>
       <strong>{formatBRL(r.totalCents)}</strong>
     </li>
   );

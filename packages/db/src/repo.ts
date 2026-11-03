@@ -37,7 +37,11 @@ export async function saveOffers(db: Db, runId: number, offers: Offer[], observe
     const [p] = await db
       .insert(products)
       .values({ store: o.store, externalId: o.externalId, ...fields })
-      .onConflictDoUpdate({ target: [products.store, products.externalId], set: fields })
+      .onConflictDoUpdate({
+        target: [products.store, products.externalId],
+        // a cached affiliate short link (set on first click) survives the refresh
+        set: { ...fields, attributes: sql`excluded.attributes || jsonb_strip_nulls(jsonb_build_object('shortUrl', ${products.attributes}->'shortUrl'))` },
+      })
       .returning({ id: products.id });
     const priceCents = toCents(o.price);
     const shippingCents = o.shipping === null ? null : toCents(o.shipping);
@@ -94,6 +98,7 @@ export async function getRunWithResults(db: Db, runId: number) {
       store: products.store,
       title: products.title,
       imageUrl: products.imageUrl,
+      sellerName: products.sellerName,
       priceCents: queryResults.priceCents,
       originalPriceCents: queryResults.originalPriceCents,
       shippingCents: queryResults.shippingCents,
@@ -384,6 +389,7 @@ export interface ListedProduct {
   store: StoreId;
   title: string;
   imageUrl: string | null;
+  sellerName: string | null;
   priceCents: number;
   originalPriceCents: number | null;
   shippingCents: number | null;
@@ -400,7 +406,7 @@ export interface ListedProduct {
  */
 export async function listProducts(db: Db, o: ListProductsOptions): Promise<{ items: ListedProduct[]; total: number }> {
   const found = await rows<{
-    id: number; store: StoreId; title: string; image_url: string | null; price_cents: number;
+    id: number; store: StoreId; title: string; image_url: string | null; seller_name: string | null; price_cents: number;
     original_price_cents: number | null; shipping_cents: number | null; attributes: Record<string, string>;
     observed_at: string | Date; total: number | string;
   }>(db, listProductsSql(o));
@@ -411,6 +417,7 @@ export async function listProducts(db: Db, o: ListProductsOptions): Promise<{ it
       store: r.store,
       title: r.title,
       imageUrl: r.image_url,
+      sellerName: r.seller_name,
       priceCents: Number(r.price_cents),
       originalPriceCents: r.original_price_cents === null ? null : Number(r.original_price_cents),
       shippingCents: r.shipping_cents === null ? null : Number(r.shipping_cents),
@@ -429,7 +436,7 @@ export function listProductsSql(o: ListProductsOptions): SQL {
       : o.order === "recentes"
         ? sql`l.observed_at desc, p.id desc`
         : sql`${total} asc, p.id asc`;
-  return sql`select p.id, p.store, p.title, p.image_url, p.attributes, l.price_cents, l.original_price_cents,
+  return sql`select p.id, p.store, p.title, p.image_url, p.seller_name, p.attributes, l.price_cents, l.original_price_cents,
                l.shipping_cents, l.observed_at, count(*) over() as total
         from products p
         join lateral (
@@ -484,4 +491,12 @@ export async function importOffers(db: Db, label: string, offers: Offer[], at = 
   const ids = await saveOffers(db, runId, offers, at);
   await finishRun(db, runId, at);
   return ids;
+}
+
+/** Stores the affiliate short link generated on the first click (see saveOffers, which keeps it). */
+export async function setProductShortUrl(db: Db, productId: number, shortUrl: string) {
+  await db
+    .update(products)
+    .set({ attributes: sql`${products.attributes} || jsonb_build_object('shortUrl', ${shortUrl}::text)` })
+    .where(eq(products.id, productId));
 }

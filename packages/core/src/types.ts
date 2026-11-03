@@ -6,6 +6,7 @@ export const STORE_IDS = [
   "aliexpress",
   "tiktokshop",
   "kwaishop",
+  "lomadee",
 ] as const;
 export type StoreId = (typeof STORE_IDS)[number];
 

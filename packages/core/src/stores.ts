@@ -8,6 +8,8 @@ export const STORES: Record<StoreId, { name: string; domains: string[]; experime
   aliexpress: { name: "AliExpress", domains: ["aliexpress.com"] },
   tiktokshop: { name: "TikTok Shop", domains: ["tiktok.com"], experimental: true },
   kwaishop: { name: "Kwai Shop", domains: ["kwai.com"], experimental: true },
+  // Lomadee affiliate network: each product carries the real store in sellerName; links go through lmdee.link
+  lomadee: { name: "Lojas parceiras", domains: ["lmdee.link"] },
 };
 
 export function storeForUrl(url: string): StoreId | null {
