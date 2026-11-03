@@ -1,7 +1,7 @@
-import { toCents, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
+import { COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
 import { and, desc, eq, gte, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
-import { clicks, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
+import { clicks, couponVotes, coupons, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
 
 async function rows<T>(db: Db, query: SQL): Promise<T[]> {
   const res = (await db.execute(query)) as unknown as { rows: T[] };
@@ -236,4 +236,85 @@ export async function topDrops(db: Db, now: Date, limit: number): Promise<Drop[]
     prevAvgCents: Math.round(Number(r.prev_avg)),
     drop: (Number(r.prev_avg) - Number(r.now_min)) / Number(r.prev_avg),
   }));
+}
+
+export type CouponRow = typeof coupons.$inferSelect;
+export type CouponWithConfidence = CouponRow & { confidence: CouponConfidence };
+
+/** Creates or updates a coupon by (store, code). Vote counters are never reset. */
+export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow> {
+  const fields = {
+    title: c.title,
+    description: c.description,
+    discountType: c.discountType,
+    discountValue: c.discountValue,
+    minOrderCents: c.minOrderCents,
+    validUntil: c.validUntil,
+    sourceUrl: c.sourceUrl,
+    source: c.source,
+    active: c.active,
+  };
+  const [row] = await db
+    .insert(coupons)
+    .values({ store: c.store, code: c.code, ...fields })
+    .onConflictDoUpdate({ target: [coupons.store, coupons.code], set: fields })
+    .returning();
+  return row;
+}
+
+/** Active, non-expired coupons ordered by confidence (best first) then newest. */
+export async function listActiveCoupons(db: Db, store: StoreId | undefined, now: Date): Promise<CouponWithConfidence[]> {
+  const rowsDb = await db
+    .select()
+    .from(coupons)
+    .where(and(eq(coupons.active, true), store ? eq(coupons.store, store) : undefined))
+    .orderBy(desc(coupons.createdAt), desc(coupons.id));
+  return rowsDb
+    .map((c) => ({ ...c, confidence: couponConfidence(c, now) }))
+    .filter((c) => c.confidence !== "expirado")
+    .sort((a, b) => COUPON_CONFIDENCE_ORDER[a.confidence] - COUPON_CONFIDENCE_ORDER[b.confidence]);
+}
+
+/**
+ * One vote per voter per coupon; repeating the same vote is a no-op and a different
+ * vote moves the counter. The coupon row is locked so counters stay consistent.
+ * Returns the new counters, or null when the coupon does not exist or is inactive.
+ */
+export async function voteCoupon(
+  db: Db,
+  couponId: number,
+  voterHash: string,
+  worked: boolean,
+): Promise<{ worked: number; failed: number } | null> {
+  return db.transaction(async (tx) => {
+    const [coupon] = await tx.select().from(coupons).where(eq(coupons.id, couponId)).for("update");
+    if (!coupon || !coupon.active) return null;
+    const [prev] = await tx
+      .select()
+      .from(couponVotes)
+      .where(and(eq(couponVotes.couponId, couponId), eq(couponVotes.voterHash, voterHash)));
+    if (prev?.worked === worked) return { worked: coupon.worked, failed: coupon.failed };
+    if (prev) {
+      await tx.update(couponVotes).set({ worked, at: new Date() }).where(eq(couponVotes.id, prev.id));
+    } else {
+      await tx.insert(couponVotes).values({ couponId, voterHash, worked });
+    }
+    const next = {
+      worked: coupon.worked + (worked ? 1 : prev ? -1 : 0),
+      failed: coupon.failed + (worked ? (prev ? -1 : 0) : 1),
+    };
+    await tx.update(coupons).set(next).where(eq(coupons.id, couponId));
+    return next;
+  });
+}
+
+export async function deactivateCoupon(db: Db, id: number): Promise<boolean> {
+  const res = await db.update(coupons).set({ active: false }).where(eq(coupons.id, id)).returning({ id: coupons.id });
+  return res.length > 0;
+}
+
+export async function countActiveCouponsByStore(db: Db, now: Date): Promise<Partial<Record<StoreId, number>>> {
+  const out: Partial<Record<StoreId, number>> = {};
+  for (const c of await listActiveCoupons(db, undefined, now)) out[c.store] = (out[c.store] ?? 0) + 1;
+  return out;
 }

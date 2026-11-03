@@ -1,9 +1,9 @@
-import { normalizeQuery, type Offer } from "@buskativa/core";
+import { normalizeQuery, type CouponValue, type Offer } from "@buskativa/core";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
-  createRun, finishRun, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
+  createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
   latestRunIdForProduct, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
@@ -127,4 +127,65 @@ describe("migrações", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].indexdef).toMatch(/\(observed_at\)/);
   }, 90000);
+});
+
+describe("cupons", { timeout: 90000 }, () => {
+  const base: CouponValue = {
+    store: "amazon", code: "ECONOMIZA10", title: "10% na Amazon", description: null, discountType: "percent",
+    discountValue: 10, minOrderCents: null, validUntil: null, sourceUrl: null, source: "manual", active: true,
+  };
+  const now = new Date("2026-11-03T12:00:00Z");
+
+  it("começa sem nenhum cupom", async () => {
+    expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
+  });
+
+  it("upsertCoupon cria e atualiza por (loja, código) sem zerar os votos", async () => {
+    const a = await upsertCoupon(db, base);
+    await voteCoupon(db, a.id, "h1", true);
+    const b = await upsertCoupon(db, { ...base, title: "Novo título", discountValue: 15 });
+    expect(b.id).toBe(a.id);
+    expect(b).toMatchObject({ title: "Novo título", discountValue: 15, worked: 1, failed: 0 });
+    expect(await listActiveCoupons(db, undefined, now)).toHaveLength(1);
+  });
+
+  it("listActiveCoupons filtra por loja, esconde vencidos e inativos e ordena por confiança", async () => {
+    const low = await upsertCoupon(db, { ...base, code: "BAIXA1" });
+    const high = await upsertCoupon(db, { ...base, code: "ALTA1" });
+    for (const h of ["a", "b", "c"]) await voteCoupon(db, high.id, h, true);
+    await upsertCoupon(db, { ...base, code: "OFICIAL1", source: "oficial" });
+    await upsertCoupon(db, { ...base, code: "VENCIDO1", validUntil: new Date("2026-11-01T00:00:00Z") });
+    const off = await upsertCoupon(db, { ...base, code: "OFF1" });
+    await deactivateCoupon(db, off.id);
+    await upsertCoupon(db, { ...base, store: "magalu", code: "MAGA10" });
+
+    const amazon = await listActiveCoupons(db, "amazon", now);
+    expect(amazon.map((c) => c.code)).toEqual(["ALTA1", "OFICIAL1", "BAIXA1"]);
+    expect(amazon.map((c) => c.confidence)).toEqual(["alta", "media", "baixa"]);
+    expect(low.id).toBeGreaterThan(0);
+    expect(await listActiveCoupons(db, undefined, now)).toHaveLength(4);
+  });
+
+  it("voteCoupon: um voto por pessoa; mesmo voto repetido não soma; trocar de voto move o contador", async () => {
+    const c = await upsertCoupon(db, base);
+    expect(await voteCoupon(db, c.id, "h1", true)).toMatchObject({ worked: 1, failed: 0 });
+    expect(await voteCoupon(db, c.id, "h1", true)).toMatchObject({ worked: 1, failed: 0 });
+    expect(await voteCoupon(db, c.id, "h2", false)).toMatchObject({ worked: 1, failed: 1 });
+    expect(await voteCoupon(db, c.id, "h1", false)).toMatchObject({ worked: 0, failed: 2 });
+    expect(await voteCoupon(db, c.id, "h1", true)).toMatchObject({ worked: 1, failed: 1 });
+  });
+
+  it("voteCoupon retorna null para cupom inexistente ou desativado", async () => {
+    expect(await voteCoupon(db, 999, "h1", true)).toBeNull();
+    const c = await upsertCoupon(db, base);
+    await deactivateCoupon(db, c.id);
+    expect(await voteCoupon(db, c.id, "h1", true)).toBeNull();
+  });
+
+  it("deactivateCoupon informa se o cupom existia", async () => {
+    const c = await upsertCoupon(db, base);
+    expect(await deactivateCoupon(db, c.id)).toBe(true);
+    expect(await deactivateCoupon(db, 999)).toBe(false);
+    expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
+  });
 });
