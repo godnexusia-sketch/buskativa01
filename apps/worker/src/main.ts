@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { closeBrowser, createConnectors } from "@buskativa/connectors";
+import { browserMaxContexts, closeBrowser, createConnectors } from "@buskativa/connectors";
 import { createDb, listWatchedQueries, migrateDb, purgeExpiredData } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
@@ -23,7 +23,12 @@ const warn = (msg: string) => log.warn(msg);
 const baseMin = positiveNumber("SEARCH_INTERVAL_MIN", env.SEARCH_INTERVAL_MIN, 60, warn);
 const fastMin = positiveNumber("SEARCH_FAST_INTERVAL_MIN", env.SEARCH_FAST_INTERVAL_MIN, 30, warn);
 const concurrency = positiveNumber("WORKER_CONCURRENCY", env.WORKER_CONCURRENCY, 3, warn, { integer: true });
-const searchDeps = { db, connectors, attemptTimeoutMs: attemptTimeoutMs(concurrency) };
+// todas as lojas contam como de navegador: limite superior seguro para a espera no semáforo global
+const searchDeps = {
+  db,
+  connectors,
+  attemptTimeoutMs: attemptTimeoutMs(concurrency, connectors.length, browserMaxContexts(env)),
+};
 
 let lastRunAt: Date | undefined;
 const worker = new Worker<SearchJob>(

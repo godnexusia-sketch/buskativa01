@@ -5,5 +5,7 @@ COPY . .
 # O Chromium e suas bibliotecas de sistema vêm do próprio Playwright.
 RUN npm ci --include=dev && npx playwright install --with-deps chromium
 ENV NODE_ENV=production
-# O Render injeta PORT; o worker abre /healthz nela. --env-file-if-exists ignora o .env ausente (excluído pelo .dockerignore).
-CMD ["npm", "run", "start", "-w", "@buskativa/worker"]
+WORKDIR /app/apps/worker
+# node direto (sem o npm como processo pai): menos memória e o SIGTERM do Render chega ao worker.
+# O Render injeta PORT; o worker abre /healthz nela. As variáveis vêm do serviço (não há .env na imagem).
+CMD ["node", "--import", "tsx", "src/main.ts"]
