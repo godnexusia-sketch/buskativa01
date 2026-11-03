@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -7,7 +8,7 @@ import * as schema from "./schema";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
+export const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), "..", "drizzle");
 
 export function createDb(url: string): { db: Db; pool: pg.Pool } {
   const pool = new pg.Pool({ connectionString: url, max: 10 });
