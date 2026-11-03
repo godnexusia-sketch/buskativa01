@@ -2,6 +2,7 @@
 import { STORES } from "@buskativa/core/stores";
 import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
+import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
 
 const ERRO_PADRAO = "Não foi possível buscar agora. Tente de novo em instantes.";
@@ -56,8 +57,9 @@ export function SearchResults({ q }: { q: string }) {
           if (!Array.isArray(d?.results)) return fail();
           setData(d);
           if (d.status === "done") return;
-          if (Date.now() - started < 90_000) timer = setTimeout(poll, 2000);
-          else setSlow(true);
+          const plan = pollPlan(Date.now() - started);
+          setSlow(plan.slow);
+          if (plan.delayMs !== null) timer = setTimeout(poll, plan.delayMs);
         } catch {
           fail();
         }
