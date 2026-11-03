@@ -3,7 +3,7 @@ import { createSearchQueue, redisConnection, type SearchJob } from "@buskativa/q
 import type { Queue } from "bullmq";
 import { createRateLimiter } from "./rate-limit";
 
-const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter>; __voteLimiter?: ReturnType<typeof createRateLimiter> };
+const g = globalThis as unknown as { __db?: Db; __queue?: Queue<SearchJob>; __limiter?: ReturnType<typeof createRateLimiter>; __voteLimiter?: ReturnType<typeof createRateLimiter>; __ipHeadersLogged?: boolean };
 
 export function getDb(): Db {
   g.__db ??= createDb(process.env.DATABASE_URL!).db;
@@ -47,4 +47,21 @@ export function clientIp(req: Request): string {
     .map((h) => h.trim())
     .filter(Boolean);
   return hops.at(-1) ?? "local";
+}
+
+/**
+ * Deploy check: with LOG_CLIENT_IP_HEADERS=true, logs the raw client-IP headers of the first search
+ * request of the process, to confirm what the proxy sends before choosing TRUSTED_IP_HEADER.
+ * Turn it off afterwards (it logs an IP address).
+ */
+export function logClientIpHeadersOnce(req: Request): void {
+  if (process.env.LOG_CLIENT_IP_HEADERS !== "true" || g.__ipHeadersLogged) return;
+  g.__ipHeadersLogged = true;
+  const h = (name: string) => req.headers.get(name);
+  console.info("cabeçalhos de IP do cliente (LOG_CLIENT_IP_HEADERS)", {
+    "x-forwarded-for": h("x-forwarded-for"),
+    "true-client-ip": h("true-client-ip"),
+    "cf-connecting-ip": h("cf-connecting-ip"),
+    clientIp: clientIp(req),
+  });
 }

@@ -1,9 +1,10 @@
 import { enqueueSearch } from "@buskativa/queue";
 import { NextResponse } from "next/server";
 import { startSearch } from "../../../lib/search-service";
-import { allowSearch, clientIp, getDb, getQueue } from "../../../lib/server";
+import { allowSearch, clientIp, getDb, getQueue, logClientIpHeadersOnce } from "../../../lib/server";
 
 export async function POST(req: Request) {
+  logClientIpHeadersOnce(req);
   if (!allowSearch(clientIp(req))) {
     return NextResponse.json({ error: "Muitas buscas seguidas. Tente de novo em 1 minuto." }, { status: 429 });
   }
