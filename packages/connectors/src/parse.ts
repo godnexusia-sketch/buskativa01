@@ -1,5 +1,6 @@
-import { type Offer, parseAllBRL, parseBRL, type StoreId } from "@buskativa/core";
+import { type Offer, parseBRL, pickCardPrice, type StoreId } from "@buskativa/core";
 import * as cheerio from "cheerio";
+import type { Cheerio, CheerioAPI } from "cheerio";
 
 const abs = (href: string, base: string) => new URL(href, base).toString();
 
@@ -59,6 +60,20 @@ export function parseJsonLd(html: string, store: StoreId, baseUrl: string): Offe
   return offers;
 }
 
+type DomNode = Parameters<CheerioAPI["contains"]>[0]; // domhandler's AnyNode without a direct dependency
+
+/** Text of an element with a space between text nodes; cheerio's .text() glues "R$ 279,90" to "10x". */
+function spacedText($: CheerioAPI, root: Cheerio<DomNode>): string {
+  const parts: string[] = [];
+  const walk = (sel: Cheerio<DomNode>) =>
+    sel.contents().each((_, node) => {
+      if (node.type === "text") parts.push(node.data);
+      else if (node.type === "tag" && node.name !== "script" && node.name !== "style") walk($(node));
+    });
+  walk(root);
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
 export function parseAnchors(html: string, store: StoreId, baseUrl: string, linkPattern: RegExp): Offer[] {
   const $ = cheerio.load(html);
   const seen = new Set<string>();
@@ -73,10 +88,9 @@ export function parseAnchors(html: string, store: StoreId, baseUrl: string, link
     if (seen.has(externalId)) return;
 
     let card = a.parent();
-    for (let i = 0; i < 5 && card.length && parseBRL(card.text()) === null; i++) card = card.parent();
-    // cards often show "de R$ 399,00 por R$ 279,90": the lowest amount is the current price
-    const prices = parseAllBRL(card.text());
-    const price = prices.length > 0 ? Math.min(...prices) : null;
+    for (let i = 0; i < 5 && card.length && parseBRL(spacedText($, card)) === null; i++) card = card.parent();
+    // skips the old "de" price, installments, shipping and cashback amounts
+    const price = pickCardPrice(spacedText($, card));
     const title = (
       a.attr("title") ||
       a.find("img").attr("alt") ||

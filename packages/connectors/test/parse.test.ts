@@ -52,6 +52,14 @@ describe("parseAnchors", () => {
     });
     expect(offers[1]).toMatchObject({ externalId: "abc123def", title: "Caixa de Som JBL Go 3", price: 199 });
   });
+
+  it("separa o texto de elementos vizinhos antes de ler os preços", () => {
+    const html =
+      '<div><a href="/x/p/aaa111/" title="Fone X">Fone</a><span>R$ 279,90</span><span>10x de R$ 27,99</span></div>';
+    const offers = parseAnchors(html, "magalu", "https://www.magazineluiza.com.br/", /\/p\/([a-z0-9]+)\//i);
+    expect(offers).toHaveLength(1);
+    expect(offers[0].price).toBe(279.9);
+  });
 });
 
 describe("parseGeneric", () => {
