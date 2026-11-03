@@ -50,3 +50,7 @@ details .list { margin-top: 8px; }
   .card .btn { width: 100%; text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) { button, .btn { transition: none; } }
+.badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.badge { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.badge.off { background: var(--accent); color: var(--accent-ink); }
+.badge.pay, .badge.below { border: 1px solid var(--accent); color: var(--accent); }

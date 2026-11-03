@@ -37,6 +37,21 @@ describe("searchResults", () => {
     expect(res!.results[0].groupId).not.toBe(res!.results[1].groupId);
   }, 90000);
 
+  it("devolve preço original e forma de pagamento de cada resultado", async () => {
+    const db = await createTestDb();
+    const { runId } = await startSearch({ db, enqueue: async () => {} }, "fone bluetooth");
+    const base = { currency: "BRL" as const, store: "mercadolivre" as const, shipping: null };
+    await saveOffers(db, runId, [
+      { ...base, externalId: "1", title: "Fone A", url: "https://www.mercadolivre.com.br/1", price: 75, originalPrice: 100, attributes: { pagamento: "pix" } },
+      { ...base, externalId: "2", title: "Fone B", url: "https://www.mercadolivre.com.br/2", price: 90, attributes: {} },
+    ]);
+    const res = await searchResults(db, runId);
+    expect(res!.results.map((r) => [r.priceCents, r.originalPriceCents, r.pagamento])).toEqual([
+      [7500, 10000, "pix"],
+      [9000, null, null],
+    ]);
+  }, 90000);
+
   it("retorna null para execução inexistente", async () => {
     expect(await searchResults(await createTestDb(), 999)).toBeNull();
   }, 90000);

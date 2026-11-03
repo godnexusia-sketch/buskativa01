@@ -1,10 +1,11 @@
 import { computeStats, similarity } from "@buskativa/core";
 import { STORES } from "@buskativa/core/stores";
-import { getPriceHistory, getProduct, latestRunIdForProduct } from "@buskativa/db";
+import { getLatestOriginalPriceCents, getPriceHistory, getProduct, latestRunIdForProduct } from "@buskativa/db";
 import { notFound } from "next/navigation";
 import { CONFIDENCE_LABEL, formatBRL, formatDateTime, hourBlockLabel, WEEKDAYS } from "../../../lib/format";
 import { searchResults } from "../../../lib/search-service";
 import { getDb } from "../../../lib/server";
+import { PriceBadges } from "../../price-badges";
 import { PriceChart } from "./price-chart";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,9 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
 
   const points = await getPriceHistory(db, id);
   const stats = computeStats(points, new Date());
+  const originalCents = await getLatestOriginalPriceCents(db, id);
+  const pagamento = product.attributes.pagamento === "app" || product.attributes.pagamento === "pix" ? product.attributes.pagamento : null;
+  const belowAvg = stats !== null && stats.changeVsAvg30d <= -0.05;
   const runId = await latestRunIdForProduct(db, id);
   const run = runId ? await searchResults(db, runId) : null;
   const others = (run?.results ?? []).filter(
@@ -30,6 +34,14 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
         <div className="info">
           <h1 style={{ fontSize: 20, margin: 0 }}>{product.title}</h1>
           <div className="muted">{STORES[product.store].name}</div>
+          {stats && (
+            <PriceBadges priceCents={Math.round(stats.current * 100)} originalPriceCents={originalCents} pagamento={pagamento} />
+          )}
+          {belowAvg && (
+            <div className="badges">
+              <span className="badge below">Abaixo da média de 30 dias</span>
+            </div>
+          )}
         </div>
         {stats && <div className="price">{formatBRL(Math.round(stats.current * 100))}</div>}
         <a className="btn" href={`/ir/${product.id}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
@@ -74,6 +86,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 <div className="info">
                   <a className="title" href={`/produto/${r.productId}`}>{r.title}</a>
                   <div className="muted">{STORES[r.store].name}</div>
+                  <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
                 </div>
                 <div className="price">{formatBRL(r.totalCents)}</div>
                 <a className="btn" href={`/ir/${r.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>

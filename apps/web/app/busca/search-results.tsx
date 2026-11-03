@@ -2,6 +2,7 @@
 import { STORES } from "@buskativa/core/stores";
 import { useEffect, useState } from "react";
 import { formatBRL } from "../../lib/format";
+import { PriceBadges } from "../price-badges";
 import { pollPlan } from "../../lib/polling";
 import type { SearchResponse, SearchResultItem } from "../../lib/search-service";
 
@@ -17,6 +18,7 @@ function Offer({ r }: { r: SearchResultItem }) {
           {STORES[r.store].name} ·{" "}
           {r.shippingCents === null ? "frete a calcular" : r.shippingCents === 0 ? "frete grátis" : `frete ${formatBRL(r.shippingCents)}`}
         </div>
+        <PriceBadges priceCents={r.priceCents} originalPriceCents={r.originalPriceCents} pagamento={r.pagamento} />
       </div>
       <div className="price">{formatBRL(r.totalCents)}</div>
       <a className="btn" href={`/ir/${r.productId}`} target="_blank" rel="noopener sponsored">Ir para a loja</a>
