@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
   createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
-  latestRunIdForProduct, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
+  latestRunIdForProduct, listProducts, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
 import { createTestDb } from "../src/testing";
@@ -208,5 +208,65 @@ describe("cupons", { timeout: 90000 }, () => {
     expect(await deactivateCoupon(db, c.id)).toBe(true);
     expect(await deactivateCoupon(db, 999)).toBe(false);
     expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
+  });
+});
+
+describe("listProducts", { timeout: 90000 }, () => {
+  const seed = async () => {
+    const q = await upsertQuery(db, nq);
+    const t0 = new Date("2026-03-01T10:00:00Z");
+    const t1 = new Date("2026-03-02T10:00:00Z");
+    const r = await createRun(db, q.id, t0);
+    // A: preço caiu (último = 80, original 100 -> 20%)
+    await saveOffers(db, r, [offer({ externalId: "A", title: "A", price: 120 })], t0);
+    await saveOffers(db, r, [offer({ externalId: "A", title: "A", price: 80, originalPrice: 100 })], t1);
+    await saveOffers(db, r, [offer({ externalId: "B", title: "B", price: 50, originalPrice: 200, attributes: { pagamento: "pix" } })], t0);
+    await saveOffers(db, r, [offer({ externalId: "C", title: "C", price: 300 })], new Date("2026-03-03T10:00:00Z"));
+    await saveOffers(db, r, [offer({ store: "amazon", externalId: "D", title: "D", price: 60, url: "https://www.amazon.com.br/dp/D" })], t0);
+  };
+  const titles = (r: { items: { title: string }[] }) => r.items.map((i) => i.title);
+  const base = { order: "menor-preco" as const, limit: 24, offset: 0 };
+
+  it("usa só o último preço de cada produto e ordena por menor preço", async () => {
+    await seed();
+    const r = await listProducts(db, base);
+    expect(titles(r)).toEqual(["B", "D", "A", "C"]);
+    expect(r.total).toBe(4);
+    const a = r.items.find((i) => i.title === "A")!;
+    expect(a).toMatchObject({ priceCents: 8000, originalPriceCents: 10000, store: "mercadolivre", pagamento: null });
+    expect(r.items[0].pagamento).toBe("pix");
+  });
+
+  it("filtra por loja e faixa de preço (inclusive)", async () => {
+    await seed();
+    expect(titles(await listProducts(db, { ...base, store: "amazon" }))).toEqual(["D"]);
+    expect(titles(await listProducts(db, { ...base, minCents: 6000, maxCents: 8000 }))).toEqual(["D", "A"]);
+    const r = await listProducts(db, { ...base, minCents: 100000 });
+    expect(r).toEqual({ items: [], total: 0 });
+  });
+
+  it("maior-desconto usa (original - preço)/original do último registro; sem desconto por último", async () => {
+    await seed();
+    expect(titles(await listProducts(db, { ...base, order: "maior-desconto" }))).toEqual(["B", "A", "D", "C"]);
+  });
+
+  it("recentes ordena pela observação mais recente", async () => {
+    await seed();
+    expect(titles(await listProducts(db, { ...base, order: "recentes" }))).toEqual(["C", "A", "D", "B"]);
+  });
+
+  it("pagina com limit/offset e total constante", async () => {
+    await seed();
+    const p1 = await listProducts(db, { ...base, limit: 3, offset: 0 });
+    const p2 = await listProducts(db, { ...base, limit: 3, offset: 3 });
+    expect(titles(p1)).toEqual(["B", "D", "A"]);
+    expect(titles(p2)).toEqual(["C"]);
+    expect(p1.total).toBe(4);
+    expect(p2.total).toBe(4);
+    expect(await listProducts(db, { ...base, offset: 50 })).toEqual({ items: [], total: 0 });
+  });
+
+  it("banco vazio devolve lista vazia", async () => {
+    expect(await listProducts(db, base)).toEqual({ items: [], total: 0 });
   });
 });

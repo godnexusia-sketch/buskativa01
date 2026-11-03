@@ -330,3 +330,75 @@ export async function deactivateCoupon(db: Db, id: number): Promise<boolean> {
   const res = await db.update(coupons).set({ active: false }).where(eq(coupons.id, id)).returning({ id: coupons.id });
   return res.length > 0;
 }
+
+export type ProductOrder = "menor-preco" | "maior-desconto" | "recentes";
+
+export interface ListProductsOptions {
+  store?: StoreId;
+  minCents?: number;
+  maxCents?: number;
+  order: ProductOrder;
+  limit: number;
+  offset: number;
+}
+
+export interface ListedProduct {
+  productId: number;
+  store: StoreId;
+  title: string;
+  imageUrl: string | null;
+  priceCents: number;
+  originalPriceCents: number | null;
+  shippingCents: number | null;
+  pagamento: "app" | "pix" | null;
+  observedAt: Date;
+}
+
+/**
+ * Every tracked product with its latest observed price (one query: DISTINCT ON the
+ * (product_id, observed_at) index), filtered by store/price range and ordered. `total` is the
+ * number of products matching the filters (0 when the requested page is past the end).
+ */
+export async function listProducts(db: Db, o: ListProductsOptions): Promise<{ items: ListedProduct[]; total: number }> {
+  const orderBy =
+    o.order === "maior-desconto"
+      ? sql`case when l.original_price_cents > l.price_cents then (l.original_price_cents - l.price_cents)::float8 / l.original_price_cents end desc nulls last, l.price_cents asc, l.product_id asc`
+      : o.order === "recentes"
+        ? sql`l.observed_at desc, l.product_id desc`
+        : sql`l.price_cents asc, l.product_id asc`;
+  const found = await rows<{
+    id: number; store: StoreId; title: string; image_url: string | null; price_cents: number;
+    original_price_cents: number | null; shipping_cents: number | null; attributes: Record<string, string>;
+    observed_at: string | Date; total: number | string;
+  }>(
+    db,
+    sql`select p.id, p.store, p.title, p.image_url, p.attributes, l.price_cents, l.original_price_cents,
+               l.shipping_cents, l.observed_at, count(*) over() as total
+        from (
+          select distinct on (product_id) product_id, price_cents, original_price_cents, shipping_cents, observed_at
+          from price_observations
+          order by product_id, observed_at desc, id desc
+        ) l
+        join products p on p.id = l.product_id
+        where true
+          ${o.store ? sql`and p.store = ${o.store}` : sql``}
+          ${o.minCents !== undefined ? sql`and l.price_cents >= ${o.minCents}` : sql``}
+          ${o.maxCents !== undefined ? sql`and l.price_cents <= ${o.maxCents}` : sql``}
+        order by ${orderBy}
+        limit ${o.limit} offset ${o.offset}`,
+  );
+  return {
+    total: found.length ? Number(found[0].total) : 0,
+    items: found.map((r) => ({
+      productId: Number(r.id),
+      store: r.store,
+      title: r.title,
+      imageUrl: r.image_url,
+      priceCents: Number(r.price_cents),
+      originalPriceCents: r.original_price_cents === null ? null : Number(r.original_price_cents),
+      shippingCents: r.shipping_cents === null ? null : Number(r.shipping_cents),
+      pagamento: pagamentoOf(r.attributes ?? {}),
+      observedAt: new Date(r.observed_at),
+    })),
+  };
+}
