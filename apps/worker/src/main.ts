@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { closeBrowser, createConnectors } from "@buskativa/connectors";
-import { createDb, listWatchedQueries, migrateDb } from "@buskativa/db";
+import { createDb, listWatchedQueries, migrateDb, purgeExpiredData } from "@buskativa/db";
 import { createSearchQueue, enqueueSearch, QUEUE_NAME, redisConnection, type SearchJob } from "@buskativa/queue";
 import { Worker } from "bullmq";
 import pino from "pino";
@@ -67,11 +67,21 @@ async function tick() {
 }
 const timer = setInterval(() => tick().catch((err) => log.error({ err }, "falha no agendador")), 5 * 60e3);
 
+// retenção da política de privacidade: na partida e a cada 24 h
+async function purge() {
+  const deleted = await purgeExpiredData(db, new Date());
+  log.info(deleted, "retenção: dados antigos apagados");
+}
+const purgeOnce = () => purge().catch((err) => log.error({ err }, "falha na limpeza de retenção"));
+void purgeOnce();
+const purgeTimer = setInterval(purgeOnce, 24 * 60 * 60e3);
+
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(timer);
+  clearInterval(purgeTimer);
   let code = 0;
   // each step runs even if a previous one failed; the pool is always released
   const step = (name: string, fn: () => Promise<unknown>) =>

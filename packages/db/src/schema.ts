@@ -93,6 +93,8 @@ export const coupons = pgTable(
     sourceUrl: text("source_url"),
     source: text("source").$type<CouponSource>().notNull(),
     active: boolean("active").notNull().default(true),
+    // set when the coupon goes inactive; drives the 30-day vote retention purge
+    deactivatedAt: tz("deactivated_at"),
     worked: integer("worked").notNull().default(0),
     failed: integer("failed").notNull().default(0),
     createdAt: tz("created_at").notNull().defaultNow(),

@@ -1,5 +1,5 @@
 import { COUPON_CONFIDENCE_ORDER, couponConfidence, toCents, type CouponConfidence, type CouponValue, type NormalizedQuery, type Offer, type PricePoint, type StoreId, type StoreStatus } from "@buskativa/core";
-import { and, desc, eq, getTableColumns, gt, gte, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gt, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
 import { clicks, couponVotes, coupons, priceObservations, products, queries, queryResults, searchRuns } from "./schema";
 
@@ -256,8 +256,12 @@ export async function upsertCoupon(db: Db, c: CouponValue): Promise<CouponRow & 
   };
   const [row] = await db
     .insert(coupons)
-    .values({ store: c.store, code: c.code, ...fields })
-    .onConflictDoUpdate({ target: [coupons.store, coupons.code], set: fields })
+    .values({ store: c.store, code: c.code, ...fields, deactivatedAt: c.active ? null : new Date() })
+    .onConflictDoUpdate({
+      target: [coupons.store, coupons.code],
+      // reactivation clears deactivated_at; staying inactive keeps the original date
+      set: { ...fields, deactivatedAt: c.active ? null : sql`coalesce(${coupons.deactivatedAt}, now())` },
+    })
     .returning({ ...getTableColumns(coupons), created: sql<boolean>`(xmax = 0)` });
   return row;
 }
@@ -326,9 +330,37 @@ export async function voteCoupon(
   });
 }
 
-export async function deactivateCoupon(db: Db, id: number): Promise<boolean> {
-  const res = await db.update(coupons).set({ active: false }).where(eq(coupons.id, id)).returning({ id: coupons.id });
+export async function deactivateCoupon(db: Db, id: number, now = new Date()): Promise<boolean> {
+  const res = await db
+    .update(coupons)
+    // a repeated deactivation keeps the first date, so the retention window is not restarted
+    .set({ active: false, deactivatedAt: sql`coalesce(${coupons.deactivatedAt}, ${now.toISOString()}::timestamptz)` })
+    .where(eq(coupons.id, id))
+    .returning({ id: coupons.id });
   return res.length > 0;
+}
+
+export const CLICK_RETENTION_MONTHS = 12;
+export const COUPON_VOTE_RETENTION_DAYS = 30;
+
+/**
+ * Retention policy (see /privacidade): clicks older than 12 months, and votes of coupons that have been
+ * inactive (deactivated_at) or expired (valid_until) for more than 30 days, are deleted.
+ */
+export async function purgeExpiredData(db: Db, now: Date): Promise<{ clicks: number; couponVotes: number }> {
+  const clickCutoff = new Date(now);
+  clickCutoff.setUTCMonth(clickCutoff.getUTCMonth() - CLICK_RETENTION_MONTHS);
+  const voteCutoff = new Date(now.getTime() - COUPON_VOTE_RETENTION_DAYS * 24 * 60 * 60e3);
+  const deletedClicks = await db.delete(clicks).where(lt(clicks.at, clickCutoff)).returning({ id: clicks.id });
+  const staleCoupons = db
+    .select({ id: coupons.id })
+    .from(coupons)
+    .where(or(and(eq(coupons.active, false), lt(coupons.deactivatedAt, voteCutoff)), lt(coupons.validUntil, voteCutoff)));
+  const deletedVotes = await db
+    .delete(couponVotes)
+    .where(inArray(couponVotes.couponId, staleCoupons))
+    .returning({ id: couponVotes.id });
+  return { clicks: deletedClicks.length, couponVotes: deletedVotes.length };
 }
 
 export const PRODUCT_ORDERS = ["menor-preco", "maior-desconto", "recentes"] as const;

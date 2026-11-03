@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/client";
 import {
   createRun, deactivateCoupon, finishRun, listActiveCoupons, upsertCoupon, voteCoupon, getLatestOriginalPriceCents, getPriceHistory, getRecentRunForHash, getRunWithResults,
-  latestRunIdForProduct, listProducts, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
+  latestRunIdForProduct, listProducts, purgeExpiredData, queriesWithRecentChange, saveOffers, topDrops, updateRunStoreStatus,
   upsertQuery,
 } from "../src/repo";
+import { clicks, couponVotes, coupons } from "../src/schema";
 import { createTestDb } from "../src/testing";
 
 const MIN = 60e3;
@@ -208,6 +209,70 @@ describe("cupons", { timeout: 90000 }, () => {
     expect(await deactivateCoupon(db, c.id)).toBe(true);
     expect(await deactivateCoupon(db, 999)).toBe(false);
     expect(await listActiveCoupons(db, undefined, now)).toEqual([]);
+  });
+});
+
+describe("retenção (purgeExpiredData)", { timeout: 90000 }, () => {
+  const base: CouponValue = {
+    store: "amazon", code: "RET10", title: "10%", description: null, discountType: "percent",
+    discountValue: 10, minOrderCents: null, validUntil: null, sourceUrl: null, source: "manual", active: true,
+  };
+  const now = new Date("2026-11-03T12:00:00Z");
+  const DAY = 24 * 60 * MIN;
+  const voteIds = async () => (await db.select().from(couponVotes)).map((v) => v.couponId).sort((a, b) => a - b);
+
+  it("deactivateCoupon marca deactivated_at e a reativação pelo upsert limpa", async () => {
+    const c = await upsertCoupon(db, base);
+    expect(c.deactivatedAt).toBeNull();
+    const at = new Date("2026-10-01T00:00:00Z");
+    await deactivateCoupon(db, c.id, at);
+    // desativar de novo não reinicia a contagem
+    await deactivateCoupon(db, c.id, new Date("2026-10-20T00:00:00Z"));
+    const [off] = await db.select().from(coupons).where(sql`id = ${c.id}`);
+    expect(off.deactivatedAt?.toISOString()).toBe(at.toISOString());
+    const back = await upsertCoupon(db, base);
+    expect(back).toMatchObject({ active: true, deactivatedAt: null });
+    const inactive = await upsertCoupon(db, { ...base, code: "OFF2", active: false });
+    expect(inactive.deactivatedAt).toBeInstanceOf(Date);
+  });
+
+  it("apaga cliques com mais de 12 meses e mantém os mais novos", async () => {
+    const q = await upsertQuery(db, nq);
+    const [productId] = await saveOffers(db, await createRun(db, q.id), [offer()]);
+    await db.insert(clicks).values([
+      { productId, at: new Date("2025-11-03T11:59:59Z") }, // 12 meses e 1 s
+      { productId, at: new Date("2025-11-03T12:00:00Z") }, // exatamente 12 meses: fica
+      { productId, at: new Date("2026-11-01T00:00:00Z") },
+    ]);
+    const res = await purgeExpiredData(db, now);
+    expect(res.clicks).toBe(1);
+    expect((await db.select().from(clicks)).map((c) => c.at.toISOString()).sort()).toEqual([
+      "2025-11-03T12:00:00.000Z", "2026-11-01T00:00:00.000Z",
+    ]);
+  });
+
+  it("apaga votos de cupons inativos há mais de 30 dias ou vencidos há mais de 30 dias", async () => {
+    const mk = async (code: string, over: Partial<CouponValue> = {}) => {
+      const c = await upsertCoupon(db, { ...base, code, ...over });
+      await voteCoupon(db, c.id, "h1", true, new Date(0));
+      return c.id;
+    };
+    const ativo = await mk("ATIVO1");
+    const offVelho = await mk("OFFVELHO");
+    const offLimite = await mk("OFFLIMITE");
+    const offNovo = await mk("OFFNOVO");
+    const vencVelho = await mk("VENCVELHO", { validUntil: new Date(now.getTime() - 30 * DAY - 1000) });
+    const vencLimite = await mk("VENCLIMITE", { validUntil: new Date(now.getTime() - 30 * DAY) });
+    await deactivateCoupon(db, offVelho, new Date(now.getTime() - 30 * DAY - 1000));
+    await deactivateCoupon(db, offLimite, new Date(now.getTime() - 30 * DAY));
+    await deactivateCoupon(db, offNovo, new Date(now.getTime() - 29 * DAY));
+
+    const res = await purgeExpiredData(db, now);
+    expect(res.couponVotes).toBe(2);
+    expect(await voteIds()).toEqual([ativo, offLimite, offNovo, vencLimite].sort((a, b) => a - b));
+    expect(vencVelho).toBeGreaterThan(0);
+    // idempotente
+    expect(await purgeExpiredData(db, now)).toEqual({ clicks: 0, couponVotes: 0 });
   });
 });
 

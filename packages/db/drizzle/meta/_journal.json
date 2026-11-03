@@ -29,6 +29,13 @@
       "when": 1793675136326,
       "tag": "0003_windy_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793687986447,
+      "tag": "0004_tan_sprite",
+      "breakpoints": true
     }
   ]
 }
