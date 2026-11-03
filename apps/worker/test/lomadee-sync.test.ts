@@ -54,7 +54,7 @@ describe("cupons da Lomadee", () => {
       },
       now,
     );
-    expect(r).toEqual({ saved: 1, skipped: 1 });
+    expect(r).toEqual({ saved: 1, skipped: 1, removed: 0 });
     const list = await listActiveCoupons(db, "lomadee", now);
     expect(list.map((x) => [x.code, x.title])).toEqual([["BF30", "B: Cupom de R$ 30,00 de desconto"]]);
   }, 90000);
@@ -70,5 +70,17 @@ describe("syncLomadeeCatalog com falhas", () => {
       { pauseMs: 0, now: () => now },
     );
     expect(r.products).toBe(2);
+  }, 90000);
+});
+
+describe("cupons que saíram da rede", () => {
+  it("são desativados; resposta muito menor que o normal não desativa nada", async () => {
+    const db = await createTestDb();
+    const cup = (code: string) => ({ code, name: "10% OFF", brand: "L", endAt: "2026-12-30T00:00:00Z", shortUrl: "https://lmdee.link/x" });
+    await syncLomadeeCoupons(db, { coupons: async () => ["AAA", "BBB", "CCC", "DDD"].map(cup) }, now);
+    expect((await syncLomadeeCoupons(db, { coupons: async () => [cup("AAA")] }, now)).removed).toBe(0);
+    const r = await syncLomadeeCoupons(db, { coupons: async () => ["AAA", "BBB", "CCC"].map(cup) }, now);
+    expect(r.removed).toBe(1);
+    expect((await listActiveCoupons(db, "lomadee", now)).map((c) => c.code).sort()).toEqual(["AAA", "BBB", "CCC"]);
   }, 90000);
 });

@@ -1,6 +1,6 @@
 import { type LomadeeCoupon, lomadeeClient } from "@buskativa/connectors";
 import { isAllowedOffer, parseCouponText, validateCoupon } from "@buskativa/core";
-import { type Db, syncCatalogOffers, upsertCoupon } from "@buskativa/db";
+import { type Db, deactivateCoupon, listActiveCoupons, syncCatalogOffers, upsertCoupon } from "@buskativa/db";
 
 type Client = ReturnType<typeof lomadeeClient>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -73,5 +73,14 @@ export async function syncLomadeeCoupons(db: Db, client: Pick<Client, "coupons">
     if (!prev || end(v) > end(prev)) byCode.set(v.code, v);
   }
   for (const v of byCode.values()) await upsertCoupon(db, v);
-  return { saved: byCode.size, skipped };
+  // coupons the network stopped listing leave the site; a much shorter answer than usual (a failed page)
+  // is not trusted for that
+  const active = await listActiveCoupons(db, "lomadee", now, 1000);
+  let removed = 0;
+  if (byCode.size >= active.length * 0.7) {
+    for (const c of active) {
+      if (!byCode.has(c.code) && (await deactivateCoupon(db, c.id, now))) removed++;
+    }
+  }
+  return { saved: byCode.size, skipped, removed };
 }
