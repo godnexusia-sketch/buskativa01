@@ -32,7 +32,7 @@ export function PriceChart({ points, avg }: { points: Point[]; avg?: number }) {
             {avg !== undefined && <ReferenceLine y={avg} stroke="var(--muted)" strokeDasharray="4 4" />}
             <Line type="stepAfter" dataKey="price" stroke="var(--ink)" strokeWidth={2} dot={false} isAnimationActive={!reduced} animationDuration={1100} animationEasing="ease-out" />
             {hi.price !== lo.price && <ReferenceDot x={hi.t} y={hi.price} r={5} fill="var(--drop)" stroke="var(--surface)" strokeWidth={2} />}
-            <ReferenceDot x={lo.t} y={lo.price} r={5} fill="var(--brand)" stroke="var(--surface)" strokeWidth={2} />
+            <ReferenceDot x={lo.t} y={lo.price} r={5} fill="var(--good)" stroke="var(--surface)" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>

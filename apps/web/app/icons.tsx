@@ -44,11 +44,11 @@ export function SearchIcon() {
 export function Logo() {
   return (
     <svg width="30" height="30" viewBox="0 0 512 512" aria-hidden="true">
-      <rect width="512" height="512" rx="112" fill="#0f9d4a" />
+      <rect width="512" height="512" rx="112" fill="#6a2bff" />
       <circle cx="226" cy="222" r="118" fill="none" stroke="#fff" strokeWidth="44" />
       <path d="M312 308 L404 400" stroke="#fff" strokeWidth="56" strokeLinecap="round" />
       <path d="M168 170 h76 l58 58 -76 76 -58 -58 z" fill="#fff" />
-      <circle cx="196" cy="198" r="14" fill="#0f9d4a" />
+      <circle cx="196" cy="198" r="14" fill="#6a2bff" />
     </svg>
   );
 }
