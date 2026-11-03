@@ -43,7 +43,7 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 3. Preencha as variáveis marcadas como `sync: false`.
 4. O worker roda as migrações ao iniciar e já dispara 20 buscas.
 
-O limite de requisições (rate limit) da API usa o cabeçalho `x-forwarded-for` para identificar o cliente. Em produção o app precisa ficar atrás de um proxy que defina esse cabeçalho (o Render faz isso).
+O limite de requisições (rate limit) da API identifica o cliente por `cf-connecting-ip`, `true-client-ip` ou `x-real-ip` quando existem; senão usa o último salto (o mais à direita) de `x-forwarded-for`, que é o adicionado pelo proxy mais próximo. Isso só é confiável se o app ficar atrás de um único proxy que acrescente esse cabeçalho e se o acesso direto ao app estiver bloqueado; com proxies extras (CDN na frente do Render, por exemplo) o último salto passa a ser o do proxy, e vários clientes podem dividir o mesmo limite. O limite fica em memória por instância, então não é compartilhado entre réplicas.
 
 ## Estado das lojas
 
