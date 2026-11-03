@@ -1,5 +1,5 @@
 import { normalizeQuery } from "@buskativa/core";
-import { type ConnectionOptions, Queue } from "bullmq";
+import { type ConnectionOptions, type JobsOptions, Queue } from "bullmq";
 
 export const QUEUE_NAME = "search";
 
@@ -27,10 +27,17 @@ export function createSearchQueue(connection: ConnectionOptions): Queue<SearchJo
   });
 }
 
-/** O jobId evita enfileirar a mesma consulta mais de uma vez na mesma janela de 10 min. */
+/**
+ * Busca do usuário (com runId): jobId único do run e sem prioridade; no BullMQ jobs sem prioridade
+ * saem antes dos priorizados, então ela passa à frente do backlog agendado.
+ * Busca agendada: deduplicação simples (sem ttl) pela consulta, válida enquanto o job espera ou roda,
+ * então um backlog longo não acumula cópias da mesma consulta; prioridade 10 fica atrás do usuário.
+ */
+export function searchJobOptions(job: SearchJob): JobsOptions {
+  if (job.runId) return { jobId: `run-${job.runId}` };
+  return { deduplication: { id: `q-${normalizeQuery(job.text).hash}` }, priority: 10 };
+}
+
 export async function enqueueSearch(queue: Queue<SearchJob>, job: SearchJob): Promise<void> {
-  const jobId = job.runId
-    ? `run-${job.runId}`
-    : `q-${normalizeQuery(job.text).hash}-${Math.floor(Date.now() / 600_000)}`;
-  await queue.add("search", job, { jobId });
+  await queue.add("search", job, searchJobOptions(job));
 }
