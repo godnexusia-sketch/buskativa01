@@ -16,7 +16,16 @@ export async function closeBrowser(): Promise<void> {
 }
 
 const BLOCK_TEXT = /captcha|não sou um robô|nao sou um robo|verifique se você é humano|robot check|unusual traffic|acesso negado/i;
-const LOGIN_URL = /\/(login|signin|buyer\/login)/i;
+const LOGIN_URL = /\/(login|signin|buyer\/login|verify\/traffic)/i;
+
+/** Devolve o motivo do bloqueio ou null. Só detecta; nunca tenta contornar. */
+export function detectBlock(page: { status: number | null; url: string; text: string }): string | null {
+  if (page.status === 403 || page.status === 429) return `HTTP ${page.status}`;
+  if (LOGIN_URL.test(page.url)) return `redirecionado para login/verificação: ${page.url}`;
+  if (BLOCK_TEXT.test(page.text)) return "página de verificação/CAPTCHA";
+  if (page.text.trim().length < 20) return "página vazia (provável bloqueio anti-bot)";
+  return null;
+}
 
 export async function fetchRendered(url: string, timeoutMs = 30000): Promise<string> {
   const browser = await getBrowser();
@@ -27,15 +36,16 @@ export async function fetchRendered(url: string, timeoutMs = 30000): Promise<str
   });
   try {
     const page = await ctx.newPage();
+    let status: number | null = null;
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+      status = (await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs }))?.status() ?? null;
     } catch (e) {
       throw new ConnectorError(/timeout/i.test(String(e)) ? "TIMEOUT" : "NETWORK", String(e));
     }
     await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-    if (LOGIN_URL.test(page.url())) throw new ConnectorError("BLOCKED", `redirecionado para login: ${page.url()}`);
     const visible = await page.innerText("body").catch(() => "");
-    if (BLOCK_TEXT.test(visible)) throw new ConnectorError("BLOCKED", "página de verificação/CAPTCHA");
+    const blocked = detectBlock({ status, url: page.url(), text: visible });
+    if (blocked) throw new ConnectorError("BLOCKED", blocked);
     return await page.content();
   } finally {
     await ctx.close();
