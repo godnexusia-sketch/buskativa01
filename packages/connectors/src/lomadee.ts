@@ -88,10 +88,12 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
   const brandMap = async () => {
     if (brands && now() - brands.at < 6 * 3600e3) return brands.byId;
     const byId = new Map<string, LomadeeBrand>();
-    for (let page = 1; page <= 20; page++) {
+    // the API pages brands 20 at a time whatever limit is asked: read until a page brings no new brand
+    for (let page = 1; page <= 50; page++) {
       const body = await get<{ data?: LomadeeBrand[] }>(`/affiliate/brands?page=${page}&limit=100`);
+      const before = byId.size;
       for (const b of body.data ?? []) byId.set(b.id, b);
-      if ((body.data ?? []).length < 100) break;
+      if (byId.size === before) break;
     }
     brands = { at: now(), byId };
     return byId;

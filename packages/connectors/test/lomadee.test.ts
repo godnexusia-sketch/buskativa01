@@ -28,7 +28,7 @@ describe("lomadeeConnector", () => {
       },
     });
     const offers = await c.search(q, { limit: 20 });
-    expect(calls.map((x) => x.key)).toEqual(["k", "k"]);
+    expect(calls.map((x) => x.key)).toEqual(["k", "k", "k"]);
     expect(calls.find((x) => x.url.includes("/products"))?.url).toBe(
       "https://api.lomadee.com.br/affiliate/products?search=air%20fryer&limit=50&isAvailable=true",
     );
