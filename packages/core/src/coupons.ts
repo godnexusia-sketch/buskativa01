@@ -22,7 +22,18 @@ export interface CouponValue {
 
 export type CouponValidation = { ok: true; value: CouponValue } | { ok: false; errors: string[] };
 
+const MAX_CENTS = 100_000_000; // R$ 1.000.000,00
 const CODE_RE = /^[A-Z0-9_-]{3,40}$/;
+
+function isHttpsUrl(v: unknown): boolean {
+  if (typeof v !== "string" || /\s/.test(v) || !/^https:\/\/[^/?#]/.test(v)) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" && u.hostname !== "";
+  } catch {
+    return false;
+  }
+}
 
 /** Validates untrusted coupon input (admin API). Messages are pt-BR and accumulate. */
 export function validateCoupon(input: unknown, now: Date): CouponValidation {
@@ -52,15 +63,15 @@ export function validateCoupon(input: unknown, now: Date): CouponValidation {
   } else if (discountType === "percent") {
     if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 90) errors.push("Desconto percentual deve ficar entre 1 e 90.");
   } else if (discountType === "fixed") {
-    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) errors.push("Desconto fixo deve ser maior que zero (em centavos).");
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0 || value > MAX_CENTS) errors.push("Desconto fixo deve ser maior que zero e no máximo R$ 1.000.000,00 (em centavos).");
   } else if (value !== 0) {
     errors.push("Cupom de frete deve ter valor 0.");
   }
 
   let minOrderCents: number | null = null;
   if (o.minOrderCents !== undefined && o.minOrderCents !== null) {
-    if (typeof o.minOrderCents !== "number" || !Number.isInteger(o.minOrderCents) || o.minOrderCents <= 0) {
-      errors.push("Pedido mínimo deve ser um número inteiro de centavos maior que zero.");
+    if (typeof o.minOrderCents !== "number" || !Number.isSafeInteger(o.minOrderCents) || o.minOrderCents <= 0 || o.minOrderCents > MAX_CENTS) {
+      errors.push("Pedido mínimo deve ser um número inteiro de centavos entre 1 e 100000000.");
     } else minOrderCents = o.minOrderCents;
   }
 
@@ -74,8 +85,9 @@ export function validateCoupon(input: unknown, now: Date): CouponValidation {
 
   let sourceUrl: string | null = null;
   if (o.sourceUrl !== undefined && o.sourceUrl !== null && o.sourceUrl !== "") {
-    const u = str(o.sourceUrl);
-    if (!u.startsWith("https://") || u.length > 500) errors.push("Link de origem deve começar com https://.");
+    const raw = o.sourceUrl;
+    const u = str(raw);
+    if (!isHttpsUrl(raw) || u.length > 500) errors.push("Link de origem deve começar com https://.");
     else sourceUrl = u;
   }
 

@@ -31,7 +31,7 @@ describe("validateCoupon", () => {
   it("valida o valor conforme o tipo de desconto", () => {
     expect(errs({ ...base, discountValue: 0 })).toContain("Desconto percentual deve ficar entre 1 e 90.");
     expect(errs({ ...base, discountValue: 91 })).toContain("Desconto percentual deve ficar entre 1 e 90.");
-    expect(errs({ ...base, discountType: "fixed", discountValue: 0 })).toContain("Desconto fixo deve ser maior que zero (em centavos).");
+    expect(errs({ ...base, discountType: "fixed", discountValue: 0 })).toContain("Desconto fixo deve ser maior que zero e no máximo R$ 1.000.000,00 (em centavos).");
     expect(errs({ ...base, discountType: "fixed", discountValue: 10.5 })).toHaveLength(1);
     expect(errs({ ...base, discountType: "fixed", discountValue: 1500 })).toEqual([]);
     expect(errs({ ...base, discountType: "frete", discountValue: 5 })).toContain("Cupom de frete deve ter valor 0.");
@@ -53,9 +53,27 @@ describe("validateCoupon", () => {
 
   it("valida título e pedido mínimo, acumulando mensagens", () => {
     expect(errs({ ...base, title: "  " })).toContain("Título é obrigatório (até 120 caracteres).");
-    expect(errs({ ...base, minOrderCents: -5 })).toContain("Pedido mínimo deve ser um número inteiro de centavos maior que zero.");
+    expect(errs({ ...base, minOrderCents: -5 })).toContain("Pedido mínimo deve ser um número inteiro de centavos entre 1 e 100000000.");
     expect(errs({ ...base, title: "", code: "x" }).length).toBe(2);
     expect(errs(null)).toEqual(["Corpo da requisição inválido."]);
+  });
+});
+
+describe("validateCoupon limites e link", () => {
+  it("limita desconto fixo e pedido mínimo a R$ 1.000.000", () => {
+    expect(errs({ ...base, discountType: "fixed", discountValue: 100_000_000 })).toEqual([]);
+    expect(errs({ ...base, discountType: "fixed", discountValue: 100_000_001 })).toContain("Desconto fixo deve ser maior que zero e no máximo R$ 1.000.000,00 (em centavos).");
+    expect(errs({ ...base, discountType: "fixed", discountValue: 2 ** 60 })).toHaveLength(1);
+    expect(errs({ ...base, minOrderCents: 100_000_000 })).toEqual([]);
+    expect(errs({ ...base, minOrderCents: 100_000_001 })).toContain("Pedido mínimo deve ser um número inteiro de centavos entre 1 e 100000000.");
+  });
+
+  it("sourceUrl precisa ser URL https com host, sem espaços", () => {
+    const msg = "Link de origem deve começar com https://.";
+    for (const u of ["https://", "https:///x", "https://a b.com", "https://amazon.com.br/a b", " http://x.com", "javascript:alert(1)", "https:x"]) {
+      expect(errs({ ...base, sourceUrl: u }), u).toContain(msg);
+    }
+    expect(errs({ ...base, sourceUrl: "https://amazon.com.br/cupom?a=1" })).toEqual([]);
   });
 });
 
