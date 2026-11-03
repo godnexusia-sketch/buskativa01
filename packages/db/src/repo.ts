@@ -355,38 +355,18 @@ export interface ListedProduct {
 }
 
 /**
- * Every tracked product with its latest observed price (one query: DISTINCT ON the
- * (product_id, observed_at) index), filtered by store/price range and ordered. `total` is the
- * number of products matching the filters (0 when the requested page is past the end).
+ * Every tracked product with its latest observed price. Driven from products (store filter applied
+ * there) with a LATERAL "latest observation" lookup that uses the (product_id, observed_at) index, so
+ * price_observations is never scanned/sorted as a whole. Price filters and the "menor-preco" order use the
+ * total (price + shipping when informed). `total` is the number of products matching the filters
+ * (0 when the requested page is past the end).
  */
 export async function listProducts(db: Db, o: ListProductsOptions): Promise<{ items: ListedProduct[]; total: number }> {
-  const orderBy =
-    o.order === "maior-desconto"
-      ? sql`case when l.original_price_cents > l.price_cents then (l.original_price_cents - l.price_cents)::float8 / l.original_price_cents end desc nulls last, l.price_cents asc, l.product_id asc`
-      : o.order === "recentes"
-        ? sql`l.observed_at desc, l.product_id desc`
-        : sql`l.price_cents asc, l.product_id asc`;
   const found = await rows<{
     id: number; store: StoreId; title: string; image_url: string | null; price_cents: number;
     original_price_cents: number | null; shipping_cents: number | null; attributes: Record<string, string>;
     observed_at: string | Date; total: number | string;
-  }>(
-    db,
-    sql`select p.id, p.store, p.title, p.image_url, p.attributes, l.price_cents, l.original_price_cents,
-               l.shipping_cents, l.observed_at, count(*) over() as total
-        from (
-          select distinct on (product_id) product_id, price_cents, original_price_cents, shipping_cents, observed_at
-          from price_observations
-          order by product_id, observed_at desc, id desc
-        ) l
-        join products p on p.id = l.product_id
-        where true
-          ${o.store ? sql`and p.store = ${o.store}` : sql``}
-          ${o.minCents !== undefined ? sql`and l.price_cents >= ${o.minCents}` : sql``}
-          ${o.maxCents !== undefined ? sql`and l.price_cents <= ${o.maxCents}` : sql``}
-        order by ${orderBy}
-        limit ${o.limit} offset ${o.offset}`,
-  );
+  }>(db, listProductsSql(o));
   return {
     total: found.length ? Number(found[0].total) : 0,
     items: found.map((r) => ({
@@ -401,4 +381,31 @@ export async function listProducts(db: Db, o: ListProductsOptions): Promise<{ it
       observedAt: new Date(r.observed_at),
     })),
   };
+}
+
+/** Query behind listProducts (exported for EXPLAIN checks). */
+export function listProductsSql(o: ListProductsOptions): SQL {
+  const total = sql`(l.price_cents + coalesce(l.shipping_cents, 0))`;
+  const orderBy =
+    o.order === "maior-desconto"
+      ? sql`case when l.original_price_cents > l.price_cents then (l.original_price_cents - l.price_cents)::float8 / l.original_price_cents end desc nulls last, ${total} asc, p.id asc`
+      : o.order === "recentes"
+        ? sql`l.observed_at desc, p.id desc`
+        : sql`${total} asc, p.id asc`;
+  return sql`select p.id, p.store, p.title, p.image_url, p.attributes, l.price_cents, l.original_price_cents,
+               l.shipping_cents, l.observed_at, count(*) over() as total
+        from products p
+        join lateral (
+          select price_cents, original_price_cents, shipping_cents, observed_at
+          from price_observations
+          where product_id = p.id
+          order by observed_at desc, id desc
+          limit 1
+        ) l on true
+        where true
+          ${o.store ? sql`and p.store = ${o.store}` : sql``}
+          ${o.minCents !== undefined ? sql`and ${total} >= ${o.minCents}` : sql``}
+          ${o.maxCents !== undefined ? sql`and ${total} <= ${o.maxCents}` : sql``}
+        order by ${orderBy}
+        limit ${o.limit} offset ${o.offset}`;
 }

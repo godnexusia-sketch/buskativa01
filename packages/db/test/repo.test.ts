@@ -266,6 +266,30 @@ describe("listProducts", { timeout: 90000 }, () => {
     expect(await listProducts(db, { ...base, offset: 50 })).toEqual({ items: [], total: 0 });
   });
 
+  it("preço e ordem consideram o frete quando informado", async () => {
+    const q = await upsertQuery(db, nq);
+    const r = await createRun(db, q.id);
+    await saveOffers(db, r, [
+      offer({ externalId: "X", title: "X", price: 50, shipping: 40 }),
+      offer({ externalId: "Y", title: "Y", price: 80, shipping: 0 }),
+      offer({ externalId: "Z", title: "Z", price: 85, shipping: null }),
+    ]);
+    expect(titles(await listProducts(db, base))).toEqual(["Y", "Z", "X"]);
+    expect(titles(await listProducts(db, { ...base, maxCents: 8500 }))).toEqual(["Y", "Z"]);
+    expect(titles(await listProducts(db, { ...base, minCents: 9000 }))).toEqual(["X"]);
+  });
+
+  it("empata observações com o mesmo observed_at pelo maior id", async () => {
+    const q = await upsertQuery(db, nq);
+    const r = await createRun(db, q.id);
+    const at = new Date("2026-03-01T10:00:00Z");
+    await saveOffers(db, r, [offer({ externalId: "T", title: "T", price: 100 })], at);
+    await saveOffers(db, r, [offer({ externalId: "T", title: "T", price: 70 })], at);
+    const res = await listProducts(db, base);
+    expect(res.items).toHaveLength(1);
+    expect(res.items[0].priceCents).toBe(7000);
+  });
+
   it("banco vazio devolve lista vazia", async () => {
     expect(await listProducts(db, base)).toEqual({ items: [], total: 0 });
   });
