@@ -151,7 +151,7 @@ export function lomadeeClient(opts: { apiKey: string; fetch?: typeof fetch; time
           if (!c.code || !c.name) continue;
           out.push({
             code: c.code.trim(),
-            name: c.name.replace(/s+/g, " ").trim(),
+            name: c.name.replace(/\s+/g, " ").trim(),
             brand: byId.get(c.organizationId)?.name?.trim() ?? null,
             endAt: c.period?.endAt ?? null,
             shortUrl: c.channels?.flatMap((ch) => ch.shortUrls ?? []).find((u) => u.startsWith("https://")) ?? null,

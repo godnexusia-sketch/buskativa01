@@ -136,3 +136,17 @@ describe("lomadeeClient: falhas passageiras", () => {
     expect((await c.coupons()).map((x) => x.code)).toEqual(["A10"]);
   });
 });
+
+describe("lomadeeClient.coupons", () => {
+  it("mantém o texto do cupom (só junta espaços) e põe o nome da loja", async () => {
+    const c = lomadeeClient({
+      apiKey: "k",
+      retryMs: 0,
+      fetch: async (u) =>
+        String(u).includes("/brands")
+          ? json({ data: [{ id: "o", name: "Sinete" }] })
+          : json({ data: [{ code: "SINETE10", name: "10%  de desconto\n em todo site", organizationId: "o" }], meta: { totalPages: 1 } }),
+    });
+    expect(await c.coupons()).toEqual([{ code: "SINETE10", name: "10% de desconto em todo site", brand: "Sinete", endAt: null, shortUrl: null }]);
+  });
+});
