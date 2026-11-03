@@ -35,7 +35,7 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 | `CONNECTORS` | `demo` para lojas falsas; vazio para as reais |
 | `ML_CLIENT_ID` / `ML_CLIENT_SECRET` | App do Mercado Livre (developers.mercadolivre.com.br); o worker pede e renova o token sozinho |
 | `ML_ACCESS_TOKEN` | Token fixo do Mercado Livre (expira em 6 h; prefira o par acima) |
-| `AMAZON_PAAPI_*` | Credenciais do PA-API; sem elas a Amazon usa o navegador |
+| `AMAZON_PAAPI_*` | Credenciais do PA-API; sem elas a Amazon usa o navegador. A Amazon aposentou o PA-API 5 em 2026 (a sucessora, Creators API, exige vendas qualificadas e ainda não tem conector aqui) |
 | `KWAI_ENABLED` | `true` liga o conector experimental do Kwai Shop |
 | `SEARCH_INTERVAL_MIN` / `SEARCH_FAST_INTERVAL_MIN` | Intervalo das buscas recorrentes (60 / 30) |
 | `AFFILIATE_PARAMS_<LOJA>` | Parâmetros de afiliado, ex.: `tag=seutag-20` |
