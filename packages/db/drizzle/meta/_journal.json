@@ -43,6 +43,13 @@
       "when": 1793723883779,
       "tag": "0005_magical_magneto",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793729806987,
+      "tag": "0006_recategorize",
+      "breakpoints": true
     }
   ]
 }

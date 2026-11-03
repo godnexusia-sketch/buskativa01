@@ -18,6 +18,9 @@ const CATEGORY_PATHS: Record<CategoryId, string> = {
   casa: "M3.5 11 12 4l8.5 7M6 9.5v10h12v-10M10 19.5v-5h4v5",
   beleza: "M9 2.5h6v5H9zM8 7.5h8l1 14H7z",
   acessorios: "M9 2.5v5M15 2.5v5M7 7.5h10v4a5 5 0 0 1-10 0zM12 16.5v5",
+  esportes: "M3 9.5v5M6 7.5v9M18 7.5v9M21 9.5v5M6 12h12",
+  moda: "M9 3.5 4 6l1.5 4.5L7.5 10v10.5h9V10l2 .5L20 6l-5-2.5a3 3 0 0 1-6 0z",
+  automotivo: "M5 16.5h14M6.5 16.5V19M17.5 16.5V19M4.5 16.5v-4l2-5h11l2 5v4zM7.5 13h.01M16.5 13h.01",
   outros: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
 };
 

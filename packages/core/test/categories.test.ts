@@ -22,7 +22,16 @@ describe("categorize", () => {
     ["Fritadeira Air Fryer Mondial 4L", "cozinha"],
     ["Ventilador de Mesa Arno 40cm", "casa"],
     ["Secador de Cabelo Taiff 2000W", "beleza"],
-    ["Tênis Nike Revolution 7", "outros"],
+    ["Tênis Nike Revolution 7", "moda"],
+    ["Creatina 300g Monohidratada Dark Lab", "esportes"],
+    ["Capacete Moto Fechado Pro Tork R8", "automotivo"],
+    ["Kit 4 Almofadas Cheias Decorativas", "casa"],
+    ["Cartucho de Tinta HP 664 XL", "perifericos"],
+    ["Projetor HY320 Mini Smart TV Android", "tvs"],
+    ["Perfume Jacques Bogart EDT 30ml", "beleza"],
+    ["Pulseira Silicone Para Amazfit Band 7", "acessorios"],
+    ["Controle Sem Fio Playstation Dualshock 4", "games"],
+    ["Lelong LE-997 Branco/Vermelho", "outros"],
   ])("%s → %s", (title, expected) => {
     expect(categorize(title)).toBe(expected);
   });
