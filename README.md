@@ -29,8 +29,7 @@ npm run smoke -w @buskativa/connectors -- amazon fone bluetooth   # checagem ao 
 |---|---|
 | `DATABASE_URL` | Postgres (Supabase em produção). Parâmetros `ssl*` da URL (ex.: `sslmode`) são ignorados: o TLS vem de `DATABASE_SSL` |
 | `DATABASE_SSL` | `disable`, `require` (criptografa sem verificar o certificado) ou `verify` (verifica contra `DATABASE_CA_CERT`). Vazio = `require` fora do localhost e `disable` no localhost |
-| `DATABASE_CA_CERT` | Certificado da CA em PEM, só para `DATABASE_SSL=verify` (aceita `
-` literal) |
+| `DATABASE_CA_CERT` | Certificado da CA em PEM, só para `DATABASE_SSL=verify` (aceita `\n` literal) |
 | `DB_POOL_MAX` | Conexões máximas do pool por processo, web e worker (padrão 5) |
 | `REDIS_URL` | Redis da fila |
 | `CONNECTORS` | `demo` para lojas falsas; vazio para as reais |

@@ -30,7 +30,7 @@ describe("sitemapEntries", () => {
 
 describe("productJsonLd", () => {
   const p = { id: 3, title: "Fone X", imageUrl: "https://img.test/a.png", storeName: "Amazon", priceCents: 12345 };
-  it("monta Product com Offer em BRL apontando para /ir/:id", () => {
+  it("monta Product com Offer em BRL apontando para /produto/:id", () => {
     const ld = productJsonLd(base, p) as Record<string, any>;
     expect(ld["@type"]).toBe("Product");
     expect(ld.name).toBe("Fone X");

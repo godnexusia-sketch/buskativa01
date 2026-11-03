@@ -19,7 +19,7 @@ describe("poolConfig", () => {
   });
 
   it("verify aceita o PEM com \n escapado", () => {
-    const escaped = PEM.replace(/\n/g, "\n");
+    const escaped = PEM.replace(/\n/g, "\\n");
     expect(poolConfig(remote, { DATABASE_SSL: "verify", DATABASE_CA_CERT: escaped }).ssl).toEqual({ ca: PEM });
   });
 
