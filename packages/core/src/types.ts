@@ -32,11 +32,14 @@ export interface Offer {
   title: string;
   url: string;
   price: number;
+  /** Price before the discount (the "de" price). */
+  originalPrice?: number;
   shipping: number | null;
   currency: "BRL";
   sellerName?: string;
   sellerRating?: number;
   imageUrl?: string;
+  /** `pagamento`: "app" or "pix" when the price only applies that way. */
   attributes: Record<string, string>;
 }
 
